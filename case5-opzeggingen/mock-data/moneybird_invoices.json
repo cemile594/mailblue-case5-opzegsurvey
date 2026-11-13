@@ -1,0 +1,6 @@
+[
+  {"id": "mb_inv_900101", "contact_id": "mb_c_310001", "invoice_id": "2026-0412", "state": "late", "invoice_date": "2026-08-13", "due_date": "2026-09-12", "currency": "EUR", "total_price_incl_tax": "149.00", "total_unpaid": "149.00"},
+  {"id": "mb_inv_900102", "contact_id": "mb_c_310001", "invoice_id": "2026-0377", "state": "paid", "invoice_date": "2026-07-13", "due_date": "2026-08-12", "currency": "EUR", "total_price_incl_tax": "149.00", "total_unpaid": "0.00"},
+  {"id": "mb_inv_900201", "contact_id": "mb_c_310002", "invoice_id": "2026-0450", "state": "paid", "invoice_date": "2026-10-01", "due_date": "2026-10-31", "currency": "EUR", "total_price_incl_tax": "4200.00", "total_unpaid": "0.00"},
+  {"id": "mb_inv_900301", "contact_id": "mb_c_310003", "invoice_id": "2026-0488", "state": "open", "invoice_date": "2026-10-20", "due_date": "2026-11-19", "currency": "EUR", "total_price_incl_tax": "49.00", "total_unpaid": "49.00"}
+]

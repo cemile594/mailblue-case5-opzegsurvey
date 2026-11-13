@@ -1,0 +1,24 @@
+{
+  "version": 4,
+  "activeEnvironmentId": "local",
+  "environmentTargets": [
+    {
+      "id": "127-0-0-1-5690",
+      "name": "127.0.0.1:5690",
+      "kind": "managed-instance",
+      "managedInstanceId": "n8n-manager-local-42fe8ccf"
+    }
+  ],
+  "environments": [
+    {
+      "id": "local",
+      "name": "Local",
+      "syncSlug": "local",
+      "environmentTargetId": "127-0-0-1-5690",
+      "projectId": "personal",
+      "projectName": "Personal",
+      "workflowsPath": "workflows/local",
+      "folderSync": false
+    }
+  ]
+}

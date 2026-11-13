@@ -1,0 +1,5 @@
+[
+  {"customer_id": "cust_8821", "naam": "Blauwdruk B.V.", "email": "info@blauwdruk-voorbeeld.nl", "plan": "Plus", "arr_abonnement": 1788, "arr_addons": 1440, "taal": "nl", "moneybird_contact_id": "mb_c_310001", "cs_owner": "Sanne (CS)"},
+  {"customer_id": "cust_4410", "naam": "Northwind Studio", "email": "hello@northwind-example.com", "plan": "Pro", "arr_abonnement": 4200, "arr_addons": 0, "taal": "en", "moneybird_contact_id": "mb_c_310002", "cs_owner": "Mark (CS)"},
+  {"customer_id": "cust_7001", "naam": "Bakkerij De Korrel", "email": "bestellen@dekorrel-voorbeeld.nl", "plan": "Lite", "arr_abonnement": 588, "arr_addons": 0, "taal": "nl", "moneybird_contact_id": "mb_c_310003", "cs_owner": "Sanne (CS)"}
+]

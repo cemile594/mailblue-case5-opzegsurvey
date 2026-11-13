@@ -1,0 +1,17 @@
+{
+  "pipeline_id": "1",
+  "stages": {
+    "Te verifiëren": "4",
+    "Persoonlijk aanbod": "5",
+    "Pauze aangevraagd": "6",
+    "Korting 20% aangevraagd": "7",
+    "Opzegging definitief": "8"
+  },
+  "tags": {
+    "opzegsurvey-bevestiging-nl": "1",
+    "opzegsurvey-bevestiging-en": "2"
+  },
+  "owner_id": "1",
+  "tasktype_id": "1",
+  "tasktype_title": "Call"
+}

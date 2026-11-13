@@ -1,0 +1,11 @@
+# secrets
+.env
+*.cred.json
+.secrets/
+# os
+.DS_Store
+# local runtime
+node_modules/
+# n8n-as-code: lokale sync-status en event-log (machine-specifiek)
+workflows/**/.n8n-state.json
+workflows/**/.n8n-sync-events.jsonl

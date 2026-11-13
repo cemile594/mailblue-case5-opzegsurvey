@@ -1,0 +1,221 @@
+{
+  "id": "sklEkPPVQBg569o6",
+  "name": "01 Mock – MoneyBird API",
+  "active": true,
+  "nodes": [
+    {
+      "id": "7dadd987-f661-4a01-9869-a5c30110f86f",
+      "webhookId": "b7e2d1c0-4a5b-4c6d-9e8f-1a2b3c4d5e6f",
+      "name": "GET sales_invoices",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "mock-moneybird/api/v2/adm-mailblue/sales_invoices",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "id": "ca4eb705-7244-48c1-8597-e7d7e7403905",
+      "name": "Auth & filter lezen",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const req = $input.first().json;\nconst auth = String((req.headers || {}).authorization || '');\nconst filter = String((req.query || {}).filter || '');\n// MoneyBird-filtersyntax: \"state:open|late,contact_id:123\"\nconst parts = {};\nfor (const p of filter.split(',')) {\n  const i = p.indexOf(':');\n  if (i > 0) parts[p.slice(0, i).trim()] = p.slice(i + 1).trim();\n}\nreturn [{ json: {\n  authorized: auth.startsWith('Bearer ') && auth.length > 7,\n  contact_id: parts.contact_id || '',\n  states: parts.state ? parts.state.split('|') : [],\n  administration_id: 'adm-mailblue'\n}}];"
+      }
+    },
+    {
+      "id": "9c7e74d8-ccb9-4807-b16a-f1aa09cc12f8",
+      "name": "Geautoriseerd?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        480,
+        0
+      ],
+      "parameters": {
+        "conditions": {
+          "combinator": "and",
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.authorized }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ]
+        },
+        "looseTypeValidation": false,
+        "options": {}
+      }
+    },
+    {
+      "id": "22547f49-f305-45e6-854b-8143716c6b41",
+      "name": "Facturen ophalen",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        720,
+        -100
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "get",
+        "dataTableId": {
+          "__rl": true,
+          "value": "moneybird_invoices",
+          "mode": "name"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "contact_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.contact_id || '__geen__' }}"
+            }
+          ]
+        },
+        "returnAll": true
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "8fec4338-854c-4301-9c4f-3b549036b3a6",
+      "name": "Naar MoneyBird-formaat",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        960,
+        -100
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const req = $('Auth & filter lezen').first().json;\nconst states = req.states;\nconst invoices = $input.all()\n  .map(i => i.json)\n  .filter(r => r.mb_id)\n  .filter(r => states.length === 0 || states.includes(r.state))\n  .map(r => ({\n    id: r.mb_id,\n    administration_id: req.administration_id,\n    contact_id: r.contact_id,\n    invoice_id: r.invoice_id,\n    state: r.state,\n    invoice_date: r.invoice_date,\n    due_date: r.due_date,\n    currency: r.currency,\n    total_price_incl_tax: Number(r.total_price_incl_tax).toFixed(2),\n    total_unpaid: Number(r.total_unpaid).toFixed(2)\n  }));\nreturn [{ json: { invoices } }];"
+      }
+    },
+    {
+      "id": "ea01cd7c-b3ba-4653-bb70-598b25510296",
+      "name": "Antwoord: facturen",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1200,
+        -100
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json.invoices) }}",
+        "options": {
+          "responseCode": 200
+        }
+      }
+    },
+    {
+      "id": "5a32ef5c-4ca1-4c41-9612-b57931f748fa",
+      "name": "Antwoord: 401",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        720,
+        120
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{ \"error\": \"Unauthorized\", \"symbol\": \"unauthorized\" }",
+        "options": {
+          "responseCode": 401
+        }
+      }
+    }
+  ],
+  "connections": {
+    "GET sales_invoices": {
+      "main": [
+        [
+          {
+            "node": "Auth & filter lezen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Auth & filter lezen": {
+      "main": [
+        [
+          {
+            "node": "Geautoriseerd?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Geautoriseerd?": {
+      "main": [
+        [
+          {
+            "node": "Facturen ophalen",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Antwoord: 401",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Facturen ophalen": {
+      "main": [
+        [
+          {
+            "node": "Naar MoneyBird-formaat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Naar MoneyBird-formaat": {
+      "main": [
+        [
+          {
+            "node": "Antwoord: facturen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/Amsterdam"
+  },
+  "tags": [],
+  "isArchived": false
+}

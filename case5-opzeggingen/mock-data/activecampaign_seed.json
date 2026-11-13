@@ -1,0 +1,13 @@
+{
+  "pipeline": {"title": "Opzeg-pipeline", "currency": "eur"},
+  "stages": ["Te verifiëren", "Persoonlijk aanbod", "Pauze aangevraagd", "Korting 20% aangevraagd", "Opzegging definitief"],
+  "tags": ["opzegsurvey-bevestiging-nl", "opzegsurvey-bevestiging-en"],
+  "contacts": [
+    {"email": "info@blauwdruk-voorbeeld.nl", "firstName": "Blauwdruk", "lastName": "B.V."},
+    {"email": "hello@northwind-example.com", "firstName": "Northwind", "lastName": "Studio"}
+  ],
+  "existing_deals": [
+    {"contact_email": "hello@northwind-example.com", "title": "Opzegsurvey – Northwind Studio – Pauze aangevraagd", "stage": "Pauze aangevraagd", "value_eur": 4200,
+     "note": "Eerdere inzending sv_10190 (2026-10-19): pauze 2 maanden aangevraagd. Nog niet afgehandeld door CS."}
+  ]
+}

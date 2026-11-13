@@ -1,0 +1,88 @@
+{
+  "id": "ze8WVEIUB0woZuMt",
+  "name": "03 Opzegsurvey – Foutafhandeling",
+  "active": true,
+  "nodes": [
+    {
+      "id": "2a72bd64-a11e-4070-a025-dfb8dedc7894",
+      "name": "Bij fout in opzegworkflow",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "2131eaca-b847-4102-a648-18c99e5ecf16",
+      "name": "Alert opbouwen",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        260,
+        0
+      ],
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const e = $input.first().json;\nconst exec = e.execution || {};\nconst wf = e.workflow || {};\nconst err = exec.error || {};\nconst lines = [\n  ':rotating_light: *Opzegsurvey-verwerking mislukt*',\n  'Workflow: ' + (wf.name || 'onbekend'),\n  'Laatste node: ' + (exec.lastNodeExecuted || 'onbekend'),\n  'Fout: ' + String(err.message || 'onbekend').slice(0, 300),\n  'Execution: ' + (exec.url || exec.id || 'onbekend'),\n  'Actie: open de execution, verwerk de opzegging handmatig. De ruwe inzending staat in data table submission_log (status received).'\n];\nreturn [{ json: {\n  channel: '#cs-alerts',\n  severity: 'critical',\n  submission_id: '',\n  text: lines.join('\\n'),\n  source: 'error-workflow',\n  created_at: new Date().toISOString()\n}}];"
+      }
+    },
+    {
+      "id": "3b87c922-0333-4191-bcda-65c9cb3c2505",
+      "name": "Slack-alert (mock)",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        520,
+        0
+      ],
+      "parameters": {
+        "resource": "row",
+        "operation": "insert",
+        "dataTableId": {
+          "__rl": true,
+          "value": "slack_messages",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      }
+    }
+  ],
+  "connections": {
+    "Bij fout in opzegworkflow": {
+      "main": [
+        [
+          {
+            "node": "Alert opbouwen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alert opbouwen": {
+      "main": [
+        [
+          {
+            "node": "Slack-alert (mock)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Europe/Amsterdam"
+  },
+  "tags": [],
+  "isArchived": false
+}
