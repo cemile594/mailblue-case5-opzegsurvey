@@ -89,6 +89,7 @@
           "createIfNotExists": true
         }
       },
+      "onError": "continueRegularOutput",
       "executeOnce": true
     },
     {
@@ -148,11 +149,12 @@
           "createIfNotExists": true
         }
       },
+      "onError": "continueRegularOutput",
       "executeOnce": true
     },
     {
       "id": "2c133b6a-5808-4873-9b21-20e0508f9417",
-      "name": "Maak tabel slack_messages",
+      "name": "Maak tabel c5_slack_messages",
       "type": "n8n-nodes-base.dataTable",
       "typeVersion": 1.1,
       "position": [
@@ -162,7 +164,7 @@
       "parameters": {
         "resource": "table",
         "operation": "create",
-        "tableName": "slack_messages",
+        "tableName": "c5_slack_messages",
         "columns": {
           "column": [
             {
@@ -195,7 +197,9 @@
           "createIfNotExists": true
         }
       },
-      "executeOnce": true
+      "onError": "continueRegularOutput",
+      "executeOnce": true,
+      "notes": "Prefix c5_: n8n zoekt Data Tables op naam met een deelmatch, dus \"slack_messages\" vond ook c4_slack_messages van case 4 op dezelfde instance."
     },
     {
       "id": "4d486d5e-a14c-4542-b2ed-3aa0950f5f0c",
@@ -258,6 +262,7 @@
           "createIfNotExists": true
         }
       },
+      "onError": "continueRegularOutput",
       "executeOnce": true
     },
     {
@@ -302,7 +307,7 @@
     },
     {
       "id": "c94634f4-1b4e-4e68-b421-cefe275d3daf",
-      "name": "Leeg slack_messages",
+      "name": "Leeg c5_slack_messages",
       "type": "n8n-nodes-base.dataTable",
       "typeVersion": 1.1,
       "position": [
@@ -314,7 +319,7 @@
         "operation": "clear",
         "dataTableId": {
           "__rl": true,
-          "value": "slack_messages",
+          "value": "c5_slack_messages",
           "mode": "name"
         }
       },
@@ -433,7 +438,7 @@
       ],
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "return [{ json: {\n  status: 'ok',\n  tabellen: ['backoffice_customers', 'moneybird_invoices', 'slack_messages', 'submission_log'],\n  backoffice_rijen: $('Backoffice-rijen (mock)').all().length,\n  moneybird_rijen: $input.all().length,\n  opmerking: 'slack_messages en submission_log zijn geleegd (demo-reset).'\n}}];"
+        "jsCode": "return [{ json: {\n  status: 'ok',\n  tabellen: ['backoffice_customers', 'moneybird_invoices', 'c5_slack_messages', 'submission_log'],\n  backoffice_rijen: $('Backoffice-rijen (mock)').all().length,\n  moneybird_rijen: $input.all().length,\n  opmerking: 'c5_slack_messages en submission_log zijn geleegd (demo-reset).'\n}}];"
       }
     }
   ],
@@ -475,14 +480,14 @@
       "main": [
         [
           {
-            "node": "Maak tabel slack_messages",
+            "node": "Maak tabel c5_slack_messages",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Maak tabel slack_messages": {
+    "Maak tabel c5_slack_messages": {
       "main": [
         [
           {
@@ -519,14 +524,14 @@
       "main": [
         [
           {
-            "node": "Leeg slack_messages",
+            "node": "Leeg c5_slack_messages",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Leeg slack_messages": {
+    "Leeg c5_slack_messages": {
       "main": [
         [
           {

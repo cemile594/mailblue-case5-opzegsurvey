@@ -115,6 +115,7 @@ import { workflow, node, links } from '@n8n-as-code/transformer';
         errorWorkflow: 'ze8WVEIUB0woZuMt',
         executionOrder: 'v1',
         timezone: 'Europe/Amsterdam',
+        binaryMode: 'separate',
     },
 })
 export class _02OpzegsurveyVerwerkenWorkflow {
@@ -127,7 +128,7 @@ export class _02OpzegsurveyVerwerkenWorkflow {
         name: 'Uitleg overzicht',
         type: 'n8n-nodes-base.stickyNote',
         version: 1,
-        position: [-60, -620],
+        position: [-64, -624],
     })
     UitlegOverzicht = {
         content: `## Opzegsurvey → CS-opvolging
@@ -149,7 +150,7 @@ Eén inzending wordt van begin tot eind verwerkt: **vastleggen → verrijken →
         name: 'Uitleg 1 ontvangen',
         type: 'n8n-nodes-base.stickyNote',
         version: 1,
-        position: [-60, -260],
+        position: [-64, -256],
     })
     Uitleg1Ontvangen = {
         content: `### 1. Ontvangen & vastleggen
@@ -180,7 +181,7 @@ MoneyBird (mock-API, zelfde formaat als echt): 3 pogingen, daarna doorgaan met "
         name: 'Uitleg bonus AI',
         type: 'n8n-nodes-base.stickyNote',
         version: 1,
-        position: [2660, -560],
+        position: [2656, -560],
     })
     UitlegBonusAi = {
         content: `### Bonus: AI op open antwoord
@@ -195,13 +196,12 @@ Alleen als er tekst is. Vast JSON-schema + vaste categorielijst, temperatuur 0, 
         name: 'Uitleg 3 regels',
         type: 'n8n-nodes-base.stickyNote',
         version: 1,
-        position: [3380, -260],
+        position: [3376, -256],
     })
     Uitleg3Regels = {
         content: `### 3. Business-regels
 Alle regels op één leesbare plek: stage-prioriteit, topklant, factuur-aandachtspunt, taal, taak/Slack nodig.`,
         height: 520,
-        width: 240,
         color: 3,
     };
 
@@ -210,7 +210,7 @@ Alle regels op één leesbare plek: stage-prioriteit, topklant, factuur-aandacht
         name: 'Uitleg 4 crm',
         type: 'n8n-nodes-base.stickyNote',
         version: 1,
-        position: [3640, -260],
+        position: [3648, -256],
     })
     Uitleg4Crm = {
         content: `### 4. ActiveCampaign (MailBlue)
@@ -225,7 +225,7 @@ Contact sync op e-mail → **bestaande open opzeg-deal? bijwerken, anders aanmak
         name: 'Uitleg 5 signalen',
         type: 'n8n-nodes-base.stickyNote',
         version: 1,
-        position: [5220, -260],
+        position: [5216, -256],
     })
     Uitleg5Signalen = {
         content: `### 5. Signalen & afronden
@@ -255,11 +255,10 @@ Taak voor CS (één taak met alle redenen), Slack-melding (mock) bij topklant of
         name: 'Config',
         type: 'n8n-nodes-base.code',
         version: 2,
-        position: [220, 0],
+        position: [224, 0],
         notes: "Eén plek voor alles wat per omgeving verschilt (drempels, ID's, URL's). In productie: n8n Variables / environment.",
     })
     Config = {
-        mode: 'runOnceForAllItems',
         jsCode: `// Eén plek voor alles wat per omgeving verschilt. In productie: n8n Variables / environment.
 const AC = {"ac_base_url":"https://celimec.api-us1.com","ac_pipeline_id":"1","ac_stages":{"te_verifieren":"4","personal_offer":"5","pause":"6","discount_20":"7","cancel":"8"},"ac_tags":{"nl":"1","en":"2"},"ac_owner_id":"1","ac_tasktype_id":"1"}; // AC-IDS (gevuld door scripts/setup_activecampaign.py)
 return [{ json: {
@@ -278,11 +277,10 @@ return [{ json: {
         name: 'Normaliseren & valideren',
         type: 'n8n-nodes-base.code',
         version: 2,
-        position: [440, 0],
+        position: [448, 0],
         notes: 'Maakt van elke payload één voorspelbare vorm. Ontbrekende/rare velden worden aandachtspunten (issues) in plaats van een crash.',
     })
     NormaliserenValideren = {
-        mode: 'runOnceForAllItems',
         jsCode: `const cfg = $('Config').first().json;
 const body = $('Webhook opzegsurvey').first().json.body;
 const issues = [];
@@ -358,12 +356,11 @@ return [{ json: {
         name: 'Al eerder ontvangen?',
         type: 'n8n-nodes-base.dataTable',
         version: 1.1,
-        position: [660, 0],
+        position: [656, 0],
         alwaysOutputData: true,
         notes: 'Idempotentie: webhooks kunnen dubbel binnenkomen. Zoekt submission_id in submission_log.',
     })
     AlEerderOntvangen = {
-        resource: 'row',
         operation: 'get',
         dataTableId: {
             __rl: true,
@@ -375,12 +372,10 @@ return [{ json: {
             conditions: [
                 {
                     keyName: 'submission_id',
-                    condition: 'eq',
                     keyValue: '={{ $json.submission_id }}',
                 },
             ],
         },
-        returnAll: false,
         limit: 1,
     };
 
@@ -412,7 +407,6 @@ return [{ json: {
                 },
             ],
         },
-        looseTypeValidation: false,
         options: {},
     };
 
@@ -421,7 +415,7 @@ return [{ json: {
         name: 'Antwoord: duplicaat',
         type: 'n8n-nodes-base.respondToWebhook',
         version: 1.5,
-        position: [1100, -160],
+        position: [1104, -160],
     })
     AntwoordDuplicaat = {
         respondWith: 'json',
@@ -437,11 +431,10 @@ return [{ json: {
         name: 'Inzending loggen',
         type: 'n8n-nodes-base.dataTable',
         version: 1.1,
-        position: [1100, 0],
+        position: [1104, 0],
         notes: 'Eerst vastleggen, dan pas bevestigen: zo is een inzending nooit kwijt, ook als een latere stap crasht (watchdog 04 kijkt hiernaar).',
     })
     InzendingLoggen = {
-        resource: 'row',
         operation: 'upsert',
         dataTableId: {
             __rl: true,
@@ -453,7 +446,6 @@ return [{ json: {
             conditions: [
                 {
                     keyName: 'submission_id',
-                    condition: 'eq',
                     keyValue: "={{ $('Normaliseren & valideren').first().json.submission_id }}",
                 },
             ],
@@ -483,7 +475,7 @@ return [{ json: {
         name: 'Antwoord: ontvangen (202)',
         type: 'n8n-nodes-base.respondToWebhook',
         version: 1.5,
-        position: [1320, 0],
+        position: [1328, 0],
     })
     AntwoordOntvangen202 = {
         respondWith: 'json',
@@ -499,29 +491,25 @@ return [{ json: {
         name: 'Backoffice opzoeken',
         type: 'n8n-nodes-base.dataTable',
         version: 1.1,
-        position: [1560, 0],
+        position: [1568, 0],
         alwaysOutputData: true,
         notes: 'Zoekt op customer_id OF e-mail, zodat payload 3 (customer_id = null) toch een kans op een match heeft.',
     })
     BackofficeOpzoeken = {
-        resource: 'row',
         operation: 'get',
         dataTableId: {
             __rl: true,
             value: 'backoffice_customers',
             mode: 'name',
         },
-        matchType: 'anyCondition',
         filters: {
             conditions: [
                 {
                     keyName: 'customer_id',
-                    condition: 'eq',
                     keyValue: "={{ $('Normaliseren & valideren').first().json.customer_id || '__geen__' }}",
                 },
                 {
                     keyName: 'email',
-                    condition: 'eq',
                     keyValue: "={{ $('Normaliseren & valideren').first().json.email || '__geen__' }}",
                 },
             ],
@@ -534,11 +522,10 @@ return [{ json: {
         name: 'Klant bepalen',
         type: 'n8n-nodes-base.code',
         version: 2,
-        position: [1780, 0],
+        position: [1776, 0],
         notes: 'customer_id gaat voor e-mail. ARR = abonnement + add-ons. Taal: survey → backoffice → nl (gemarkeerd).',
     })
     KlantBepalen = {
-        mode: 'runOnceForAllItems',
         jsCode: `const n = $('Normaliseren & valideren').first().json;
 const cfg = $('Config').first().json;
 const issues = [...n.issues];
@@ -609,7 +596,6 @@ return [{ json: {
                 },
             ],
         },
-        looseTypeValidation: false,
         options: {},
     };
 
@@ -618,7 +604,7 @@ return [{ json: {
         name: 'MoneyBird: open facturen',
         type: 'n8n-nodes-base.httpRequest',
         version: 4.5,
-        position: [2220, -120],
+        position: [2224, -112],
         credentials: { httpHeaderAuth: { id: 'r3SrscUS0aDMhEz5', name: 'MoneyBird API (mock)' } },
         onError: 'continueErrorOutput',
         retryOnFail: true,
@@ -627,12 +613,10 @@ return [{ json: {
         notes: 'Zelfde endpoint/filter als de echte MoneyBird API. Timeout 5s, 3 pogingen; daarna error-uitgang (flow gaat door).',
     })
     MoneybirdOpenFacturen = {
-        method: 'GET',
         url: "={{ $('Config').first().json.moneybird_base_url }}/sales_invoices",
         authentication: 'genericCredentialType',
         genericAuthType: 'httpHeaderAuth',
         sendQuery: true,
-        specifyQuery: 'keypair',
         queryParameters: {
             parameters: [
                 {
@@ -642,13 +626,13 @@ return [{ json: {
             ],
         },
         options: {
-            timeout: 5000,
             response: {
                 response: {
                     fullResponse: true,
                     responseFormat: 'json',
                 },
             },
+            timeout: 5000,
         },
     };
 
@@ -657,10 +641,9 @@ return [{ json: {
         name: 'Facturen samenvatten',
         type: 'n8n-nodes-base.code',
         version: 2,
-        position: [2440, -220],
+        position: [2448, -224],
     })
     FacturenSamenvatten = {
-        mode: 'runOnceForAllItems',
         jsCode: `const ctx = $('Klant bepalen').first().json;
 const body = $input.first().json.body;
 if (!Array.isArray(body)) {
@@ -692,11 +675,10 @@ return [{ json: {
         name: 'MoneyBird niet bereikbaar',
         type: 'n8n-nodes-base.code',
         version: 2,
-        position: [2440, -40],
+        position: [2448, -32],
         notes: 'Geen stop: de opzegging gaat gewoon door naar CS, met een expliciet aandachtspunt.',
     })
     MoneybirdNietBereikbaar = {
-        mode: 'runOnceForAllItems',
         jsCode: `const ctx = $('Klant bepalen').first().json;
 const err = $input.first().json.error;
 const raw = (err && (err.message || err.description)) ? String(err.message || err.description) : '';
@@ -717,10 +699,9 @@ return [{ json: {
         name: 'Geen MoneyBird-check',
         type: 'n8n-nodes-base.code',
         version: 2,
-        position: [2440, 140],
+        position: [2448, 144],
     })
     GeenMoneybirdCheck = {
-        mode: 'runOnceForAllItems',
         jsCode: `const ctx = $input.first().json;
 return [{ json: { ...ctx, factuur_status: 'n.v.t.', openstaande_facturen: [], openstaand_totaal: 0, max_dagen_over_vervaldatum: 0 } }];`,
     };
@@ -730,7 +711,7 @@ return [{ json: { ...ctx, factuur_status: 'n.v.t.', openstaande_facturen: [], op
         name: 'Feedback aanwezig?',
         type: 'n8n-nodes-base.if',
         version: 2.3,
-        position: [2700, 0],
+        position: [2704, 0],
     })
     FeedbackAanwezig = {
         conditions: {
@@ -753,7 +734,6 @@ return [{ json: { ...ctx, factuur_status: 'n.v.t.', openstaande_facturen: [], op
                 },
             ],
         },
-        looseTypeValidation: false,
         options: {},
     };
 
@@ -762,7 +742,7 @@ return [{ json: { ...ctx, factuur_status: 'n.v.t.', openstaande_facturen: [], op
         name: 'AI: feedback analyseren',
         type: '@n8n/n8n-nodes-langchain.informationExtractor',
         version: 1.2,
-        position: [2920, -220],
+        position: [2864, -240],
         onError: 'continueErrorOutput',
         retryOnFail: true,
         maxTries: 2,
@@ -807,14 +787,14 @@ Vat alleen samen wat er letterlijk staat en verzin niets. Kies precies één cat
         name: 'Gemini (flash-lite)',
         type: '@n8n/n8n-nodes-langchain.lmChatGoogleGemini',
         version: 1.1,
-        position: [2920, 0],
+        position: [2880, -80],
         credentials: { googlePalmApi: { id: 'vgLU3y0trEdKKT1B', name: 'Gemini (case 5)' } },
     })
     GeminiFlashLite = {
         modelName: 'models/gemini-3.5-flash-lite',
         options: {
-            temperature: 0,
             maxOutputTokens: 400,
+            temperature: 0,
         },
     };
 
@@ -823,11 +803,10 @@ Vat alleen samen wat er letterlijk staat en verzin niets. Kies precies één cat
         name: 'AI-output valideren',
         type: 'n8n-nodes-base.code',
         version: 2,
-        position: [3160, -300],
+        position: [3168, -304],
         notes: 'Vertrouw de AI niet blind: categorie moet in de lijst staan (anders "overig"), lengte begrensd, lege output = weggooien.',
     })
     AiOutputValideren = {
-        mode: 'runOnceForAllItems',
         jsCode: `const ctx = $('Feedback aanwezig?').first().json;
 const CATS = ['onboarding_begeleiding', 'templates_content', 'functionaliteit', 'integraties', 'prijs_waarde', 'tijd_capaciteit', 'support', 'overig'];
 const o = ($input.first().json && $input.first().json.output) || {};
@@ -851,10 +830,9 @@ return [{ json: { ...ctx, issues, ai } }];`,
         name: 'AI mislukt',
         type: 'n8n-nodes-base.code',
         version: 2,
-        position: [3160, -120],
+        position: [3168, -112],
     })
     AiMislukt = {
-        mode: 'runOnceForAllItems',
         jsCode: `const ctx = $('Feedback aanwezig?').first().json;
 const err = $input.first().json.error;
 return [{ json: { ...ctx, ai: { status: 'mislukt', fout: String((err && err.message) || 'onbekend').slice(0, 120) } } }];`,
@@ -865,11 +843,10 @@ return [{ json: { ...ctx, ai: { status: 'mislukt', fout: String((err && err.mess
         name: 'Routing bepalen',
         type: 'n8n-nodes-base.code',
         version: 2,
-        position: [3420, 0],
+        position: [3424, 0],
         notes: 'Alle business-regels op één plek: stage-prioriteit, topklant, factuur-aandachtspunt, taal, taak/Slack.',
     })
     RoutingBepalen = {
-        mode: 'runOnceForAllItems',
         jsCode: `const c = $input.first().json;
 const cfg = $('Config').first().json;
 
@@ -987,7 +964,7 @@ return [{ json: {
         name: 'AC: contact synchroniseren',
         type: 'n8n-nodes-base.activeCampaign',
         version: 1,
-        position: [3700, 0],
+        position: [3696, 0],
         credentials: { activeCampaignApi: { id: 'p8gpGpHa1hYCkFp9', name: 'ActiveCampaign (trial)' } },
         retryOnFail: true,
         maxTries: 3,
@@ -995,8 +972,6 @@ return [{ json: {
         notes: 'Contact sync op e-mail (bestaat al → bijwerken, anders aanmaken). Ook voor een onbekende klant, zodat de deal en de bevestiging niet wegvallen.',
     })
     AcContactSynchroniseren = {
-        resource: 'contact',
-        operation: 'create',
         email: '={{ $json.ac_email }}',
         updateIfExists: true,
         additionalFields: {},
@@ -1015,7 +990,6 @@ return [{ json: {
         notes: 'De ActiveCampaign-node kan deals niet filteren, dus direct de API: alle deals van dit contact.',
     })
     AcDealsVanContact = {
-        method: 'GET',
         url: "={{ $('Config').first().json.ac_base_url }}/api/3/contacts/{{ $json.id }}/deals",
         authentication: 'predefinedCredentialType',
         nodeCredentialType: 'activeCampaignApi',
@@ -1029,11 +1003,10 @@ return [{ json: {
         name: 'Open opzeg-deal zoeken',
         type: 'n8n-nodes-base.code',
         version: 2,
-        position: [4140, 0],
+        position: [4144, 0],
         notes: 'Regel (e): is er al een open deal in de opzeg-pipeline voor dit contact? Dan bijwerken i.p.v. dubbel aanmaken.',
     })
     OpenOpzegDealZoeken = {
-        mode: 'runOnceForAllItems',
         jsCode: `const ctx = $('Routing bepalen').first().json;
 const cfg = $('Config').first().json;
 const contact_id = String($('AC: contact synchroniseren').first().json.id);
@@ -1057,7 +1030,7 @@ return [{ json: {
         name: 'Bestaande deal?',
         type: 'n8n-nodes-base.if',
         version: 2.3,
-        position: [4360, 0],
+        position: [4368, 0],
     })
     BestaandeDeal = {
         conditions: {
@@ -1080,7 +1053,6 @@ return [{ json: {
                 },
             ],
         },
-        looseTypeValidation: false,
         options: {},
     };
 
@@ -1089,7 +1061,7 @@ return [{ json: {
         name: 'AC: deal bijwerken',
         type: 'n8n-nodes-base.activeCampaign',
         version: 1,
-        position: [4580, -100],
+        position: [4576, -96],
         credentials: { activeCampaignApi: { id: 'p8gpGpHa1hYCkFp9', name: 'ActiveCampaign (trial)' } },
         retryOnFail: true,
         maxTries: 3,
@@ -1101,8 +1073,8 @@ return [{ json: {
         dealId: '={{ Number($json.bestaande_deal_id) }}',
         updateFields: {
             title: '={{ $json.deal_titel }}',
-            stage: '={{ $json.stage_id }}',
             value: '={{ $json.deal_waarde_cent }}',
+            stage: '={{ $json.stage_id }}',
         },
     };
 
@@ -1111,7 +1083,7 @@ return [{ json: {
         name: 'AC: deal aanmaken',
         type: 'n8n-nodes-base.activeCampaign',
         version: 1,
-        position: [4580, 100],
+        position: [4576, 96],
         credentials: { activeCampaignApi: { id: 'p8gpGpHa1hYCkFp9', name: 'ActiveCampaign (trial)' } },
         retryOnFail: true,
         maxTries: 3,
@@ -1119,11 +1091,9 @@ return [{ json: {
     })
     AcDealAanmaken = {
         resource: 'deal',
-        operation: 'create',
         title: '={{ $json.deal_titel }}',
         contact: '={{ Number($json.contact_id) }}',
         value: '={{ $json.deal_waarde_cent }}',
-        currency: 'eur',
         group: "={{ $('Config').first().json.ac_pipeline_id }}",
         stage: '={{ $json.stage_id }}',
         owner: "={{ $('Config').first().json.ac_owner_id }}",
@@ -1138,7 +1108,6 @@ return [{ json: {
         position: [4800, 0],
     })
     DealVastleggen = {
-        mode: 'runOnceForAllItems',
         jsCode: `const ctx = $('Open opzeg-deal zoeken').first().json;
 const r = $input.first().json;
 const deal = r.deal || r;
@@ -1150,7 +1119,7 @@ return [{ json: { ...ctx, deal_id: String(deal.id), deal_actie: ctx.bestaande_de
         name: 'AC: notitie toevoegen',
         type: 'n8n-nodes-base.activeCampaign',
         version: 1,
-        position: [5020, 0],
+        position: [5024, 0],
         credentials: { activeCampaignApi: { id: 'p8gpGpHa1hYCkFp9', name: 'ActiveCampaign (trial)' } },
         retryOnFail: true,
         maxTries: 3,
@@ -1168,7 +1137,7 @@ return [{ json: { ...ctx, deal_id: String(deal.id), deal_actie: ctx.bestaande_de
         name: 'AC: taaltag toevoegen',
         type: 'n8n-nodes-base.activeCampaign',
         version: 1,
-        position: [5240, 0],
+        position: [5248, 0],
         credentials: { activeCampaignApi: { id: 'p8gpGpHa1hYCkFp9', name: 'ActiveCampaign (trial)' } },
         retryOnFail: true,
         maxTries: 3,
@@ -1178,8 +1147,8 @@ return [{ json: { ...ctx, deal_id: String(deal.id), deal_actie: ctx.bestaande_de
     AcTaaltagToevoegen = {
         resource: 'contactTag',
         operation: 'add',
-        contactId: "={{ Number($('Deal vastleggen').first().json.contact_id) }}",
         tagId: "={{ $('Deal vastleggen').first().json.tag_id }}",
+        contactId: "={{ Number($('Deal vastleggen').first().json.contact_id) }}",
     };
 
     @node({
@@ -1187,7 +1156,7 @@ return [{ json: { ...ctx, deal_id: String(deal.id), deal_actie: ctx.bestaande_de
         name: 'Taak nodig?',
         type: 'n8n-nodes-base.if',
         version: 2.3,
-        position: [5460, 0],
+        position: [5456, 0],
     })
     TaakNodig = {
         conditions: {
@@ -1210,7 +1179,6 @@ return [{ json: { ...ctx, deal_id: String(deal.id), deal_actie: ctx.bestaande_de
                 },
             ],
         },
-        looseTypeValidation: false,
         options: {},
     };
 
@@ -1219,7 +1187,7 @@ return [{ json: { ...ctx, deal_id: String(deal.id), deal_actie: ctx.bestaande_de
         name: 'AC: taak voor CS',
         type: 'n8n-nodes-base.httpRequest',
         version: 4.5,
-        position: [5680, -100],
+        position: [5680, -96],
         credentials: { activeCampaignApi: { id: 'p8gpGpHa1hYCkFp9', name: 'ActiveCampaign (trial)' } },
         retryOnFail: true,
         maxTries: 3,
@@ -1232,7 +1200,6 @@ return [{ json: { ...ctx, deal_id: String(deal.id), deal_actie: ctx.bestaande_de
         authentication: 'predefinedCredentialType',
         nodeCredentialType: 'activeCampaignApi',
         sendBody: true,
-        contentType: 'json',
         specifyBody: 'json',
         jsonBody:
             "={{ JSON.stringify({ dealTask: { title: $('Deal vastleggen').first().json.taak.titel, ownerType: 'deal', relid: Number($('Deal vastleggen').first().json.deal_id), status: 0, note: $('Deal vastleggen').first().json.taak.notitie, duedate: $('Deal vastleggen').first().json.taak.deadline, dealTasktype: Number($('Config').first().json.ac_tasktype_id), assignee: Number($('Config').first().json.ac_owner_id) } }) }}",
@@ -1246,7 +1213,7 @@ return [{ json: { ...ctx, deal_id: String(deal.id), deal_actie: ctx.bestaande_de
         name: 'Slack nodig?',
         type: 'n8n-nodes-base.if',
         version: 2.3,
-        position: [5900, 0],
+        position: [5904, 0],
     })
     SlackNodig = {
         conditions: {
@@ -1269,7 +1236,6 @@ return [{ json: { ...ctx, deal_id: String(deal.id), deal_actie: ctx.bestaande_de
                 },
             ],
         },
-        looseTypeValidation: false,
         options: {},
     };
 
@@ -1278,10 +1244,9 @@ return [{ json: { ...ctx, deal_id: String(deal.id), deal_actie: ctx.bestaande_de
         name: 'Slackberichten klaarzetten',
         type: 'n8n-nodes-base.code',
         version: 2,
-        position: [6120, -100],
+        position: [6128, -96],
     })
     SlackberichtenKlaarzetten = {
-        mode: 'runOnceForAllItems',
         jsCode: `const ctx = $('Deal vastleggen').first().json;
 return ctx.slack_berichten.map(m => ({ json: {
   channel: m.channel,
@@ -1298,15 +1263,13 @@ return ctx.slack_berichten.map(m => ({ json: {
         name: 'Slack-melding (mock)',
         type: 'n8n-nodes-base.dataTable',
         version: 1.1,
-        position: [6340, -100],
-        notes: 'Mock van Slack: elk bericht wordt een rij in slack_messages. In productie: Slack-node (chat.postMessage) met dezelfde tekst.',
+        position: [6336, -96],
+        notes: 'Mock van Slack: elk bericht wordt een rij in c5_slack_messages. In productie: Slack-node (chat.postMessage) met dezelfde tekst.',
     })
     SlackMeldingMock = {
-        resource: 'row',
-        operation: 'insert',
         dataTableId: {
             __rl: true,
-            value: 'slack_messages',
+            value: 'c5_slack_messages',
             mode: 'name',
         },
         columns: {
@@ -1327,7 +1290,6 @@ return ctx.slack_berichten.map(m => ({ json: {
         executeOnce: true,
     })
     AfrondenInLog = {
-        resource: 'row',
         operation: 'update',
         dataTableId: {
             __rl: true,
@@ -1339,7 +1301,6 @@ return ctx.slack_berichten.map(m => ({ json: {
             conditions: [
                 {
                     keyName: 'submission_id',
-                    condition: 'eq',
                     keyValue: "={{ $('Deal vastleggen').first().json.submission_id }}",
                 },
             ],

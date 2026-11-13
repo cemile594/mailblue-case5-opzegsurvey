@@ -12,7 +12,7 @@ for a in "$@"; do case "$a" in --reset) reset=1 ;; --extra) extra=1 ;; esac; don
 if [ "$reset" = 1 ]; then
   echo "↺ Reset ActiveCampaign (opzeg-deals, demo-contact, tags) + seed-deal Northwind"
   python3 scripts/setup_activecampaign.py --reset >/dev/null
-  echo "↺ Reset Data Tables (backoffice, MoneyBird-mock, slack_messages, submission_log)"
+  echo "↺ Reset Data Tables (backoffice, MoneyBird-mock, c5_slack_messages, submission_log)"
   curl -s -X POST "$N8N/webhook/setup-mock-data"; echo
 fi
 

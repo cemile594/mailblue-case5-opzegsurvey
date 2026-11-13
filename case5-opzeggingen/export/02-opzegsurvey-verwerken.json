@@ -9,8 +9,8 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        -60,
-        -620
+        -64,
+        -624
       ],
       "parameters": {
         "content": "## Opzegsurvey → CS-opvolging\nEén inzending wordt van begin tot eind verwerkt: **vastleggen → verrijken → regels → ActiveCampaign → signalen**.\n\n**Uitgangspunt: niemand mag een opzegging missen.**\n- Inzending wordt eerst gelogd (`submission_log`) en pas dan bevestigd (202).\n- Ontbrekende data stopt de flow niet: het wordt een *aandachtspunt* in deal + taak.\n- MoneyBird of AI kapot → flow loopt door met markering.\n- Crash elders → foutworkflow (03) + watchdog (04) melden het in #cs-alerts.\n- Dubbele webhook (zelfde submission_id) → niets dubbel.",
@@ -25,8 +25,8 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        -60,
-        -260
+        -64,
+        -256
       ],
       "parameters": {
         "content": "### 1. Ontvangen & vastleggen\nNormaliseren (keuze altijd een lijst, pauze max. 4 mnd, taal nl/en), duplicaatcheck op `submission_id`, ruwe payload loggen en dan pas 202 terugsturen.",
@@ -57,7 +57,7 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        2660,
+        2656,
         -560
       ],
       "parameters": {
@@ -73,13 +73,12 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        3380,
-        -260
+        3376,
+        -256
       ],
       "parameters": {
         "content": "### 3. Business-regels\nAlle regels op één leesbare plek: stage-prioriteit, topklant, factuur-aandachtspunt, taal, taak/Slack nodig.",
         "height": 520,
-        "width": 240,
         "color": 3
       }
     },
@@ -89,8 +88,8 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        3640,
-        -260
+        3648,
+        -256
       ],
       "parameters": {
         "content": "### 4. ActiveCampaign (MailBlue)\nContact sync op e-mail → **bestaande open opzeg-deal? bijwerken, anders aanmaken** → notitie → taaltag (start NL/EN-bevestigingsmail via automation).",
@@ -105,8 +104,8 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        5220,
-        -260
+        5216,
+        -256
       ],
       "parameters": {
         "content": "### 5. Signalen & afronden\nTaak voor CS (één taak met alle redenen), Slack-melding (mock) bij topklant of alert, en `submission_log` op processed.",
@@ -138,11 +137,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        220,
+        224,
         0
       ],
       "parameters": {
-        "mode": "runOnceForAllItems",
         "jsCode": "// Eén plek voor alles wat per omgeving verschilt. In productie: n8n Variables / environment.\nconst AC = {\"ac_base_url\":\"https://<jouw-account>.api-us1.com\",\"ac_pipeline_id\":\"1\",\"ac_stages\":{\"te_verifieren\":\"4\",\"personal_offer\":\"5\",\"pause\":\"6\",\"discount_20\":\"7\",\"cancel\":\"8\"},\"ac_tags\":{\"nl\":\"1\",\"en\":\"2\"},\"ac_owner_id\":\"1\",\"ac_tasktype_id\":\"1\"}; // AC-IDS (gevuld door scripts/setup_activecampaign.py)\nreturn [{ json: {\n  arr_topklant_drempel: 3000,   // € ARR incl. add-ons\n  max_pauze_maanden: 4,\n  // Mock-API in deze n8n (poort binnen de container). Productie: https://moneybird.com/api/v2/<administratie_id>\n  moneybird_base_url: 'http://127.0.0.1:5678/webhook/mock-moneybird/api/v2/adm-mailblue',\n  slack_kanaal_topklant: '#cs-topklanten',\n  slack_kanaal_alerts: '#cs-alerts',\n  ...AC\n}}];"
       },
       "notes": "Eén plek voor alles wat per omgeving verschilt (drempels, ID's, URL's). In productie: n8n Variables / environment."
@@ -153,11 +151,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        440,
+        448,
         0
       ],
       "parameters": {
-        "mode": "runOnceForAllItems",
         "jsCode": "const cfg = $('Config').first().json;\nconst body = $('Webhook opzegsurvey').first().json.body;\nconst issues = [];\nconst info = [];\nconst p = (body && typeof body === 'object' && !Array.isArray(body)) ? body : {};\nif (p !== body) issues.push('Payload ontbreekt of is geen JSON-object');\nconst str = v => (v === null || v === undefined) ? '' : String(v).trim();\n\nlet submission_id = str(p.submission_id);\nif (!submission_id) {\n  submission_id = 'gen_' + Date.now();\n  issues.push('submission_id ontbrak (gegenereerd: ' + submission_id + ')');\n}\n\nconst email = str(p.email).toLowerCase();\nconst emailOk = /^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(email);\nif (!email) issues.push('E-mailadres ontbreekt');\nelse if (!emailOk) issues.push('E-mailadres ongeldig: ' + email);\n\nconst customer_id = str(p.customer_id) || null;\n\n// Keuze: string of lijst -> altijd een unieke lijst van geldige waarden\nconst GELDIG = ['cancel', 'pause', 'discount_20', 'personal_offer'];\nconst ruw = Array.isArray(p.choice) ? p.choice : (p.choice ? [p.choice] : []);\nconst keuzes = [...new Set(ruw.map(c => str(c).toLowerCase()).filter(Boolean))];\nconst ongeldig = keuzes.filter(c => !GELDIG.includes(c));\nconst choices = keuzes.filter(c => GELDIG.includes(c));\nif (keuzes.length === 0) issues.push('Geen keuze ingevuld in de survey');\nif (ongeldig.length) issues.push('Onbekende keuze(s): ' + ongeldig.join(', '));\n\nconst lang = str(p.language).toLowerCase();\nconst language = ['nl', 'en'].includes(lang) ? lang : null;\nif (lang && !language) issues.push('Onbekende taal \"' + lang + '\"');\n\n// Pauze: maximaal cfg.max_pauze_maanden. Te lang = begrenzen + aandachtspunt voor CS.\nlet pause_months = null;\nlet pause_months_gevraagd = null;\nif (choices.includes('pause')) {\n  const n = Number(p.pause_months);\n  if (p.pause_months === undefined || p.pause_months === null || p.pause_months === '') {\n    issues.push('Pauze gekozen zonder aantal maanden');\n  } else if (!Number.isFinite(n) || n < 1) {\n    issues.push('Ongeldig aantal pauzemaanden: ' + p.pause_months);\n  } else {\n    pause_months_gevraagd = n;\n    pause_months = Math.min(Math.round(n), cfg.max_pauze_maanden);\n    if (n > cfg.max_pauze_maanden) {\n      issues.push('Pauze van ' + n + ' maanden gevraagd, maximum is ' + cfg.max_pauze_maanden + ' (begrensd op ' + cfg.max_pauze_maanden + ')');\n    }\n  }\n}\n\nreturn [{ json: {\n  submission_id,\n  submitted_at: str(p.submitted_at) || new Date().toISOString(),\n  customer_id,\n  email: email || null,\n  language,\n  choices,\n  pause_months,\n  pause_months_gevraagd,\n  reason: str(p.reason) || null,\n  reason_detail: str(p.reason_detail) || null,\n  open_feedback: str(p.open_feedback),\n  issues,\n  info,\n  raw_payload: JSON.stringify(body === undefined ? null : body)\n}}];"
       },
       "notes": "Maakt van elke payload één voorspelbare vorm. Ontbrekende/rare velden worden aandachtspunten (issues) in plaats van een crash."
@@ -168,11 +165,10 @@
       "type": "n8n-nodes-base.dataTable",
       "typeVersion": 1.1,
       "position": [
-        660,
+        656,
         0
       ],
       "parameters": {
-        "resource": "row",
         "operation": "get",
         "dataTableId": {
           "__rl": true,
@@ -184,12 +180,10 @@
           "conditions": [
             {
               "keyName": "submission_id",
-              "condition": "eq",
               "keyValue": "={{ $json.submission_id }}"
             }
           ]
         },
-        "returnAll": false,
         "limit": 1
       },
       "alwaysOutputData": true,
@@ -225,7 +219,6 @@
             }
           ]
         },
-        "looseTypeValidation": false,
         "options": {}
       }
     },
@@ -235,7 +228,7 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.5,
       "position": [
-        1100,
+        1104,
         -160
       ],
       "parameters": {
@@ -252,11 +245,10 @@
       "type": "n8n-nodes-base.dataTable",
       "typeVersion": 1.1,
       "position": [
-        1100,
+        1104,
         0
       ],
       "parameters": {
-        "resource": "row",
         "operation": "upsert",
         "dataTableId": {
           "__rl": true,
@@ -268,7 +260,6 @@
           "conditions": [
             {
               "keyName": "submission_id",
-              "condition": "eq",
               "keyValue": "={{ $('Normaliseren & valideren').first().json.submission_id }}"
             }
           ]
@@ -300,7 +291,7 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.5,
       "position": [
-        1320,
+        1328,
         0
       ],
       "parameters": {
@@ -317,28 +308,24 @@
       "type": "n8n-nodes-base.dataTable",
       "typeVersion": 1.1,
       "position": [
-        1560,
+        1568,
         0
       ],
       "parameters": {
-        "resource": "row",
         "operation": "get",
         "dataTableId": {
           "__rl": true,
           "value": "backoffice_customers",
           "mode": "name"
         },
-        "matchType": "anyCondition",
         "filters": {
           "conditions": [
             {
               "keyName": "customer_id",
-              "condition": "eq",
               "keyValue": "={{ $('Normaliseren & valideren').first().json.customer_id || '__geen__' }}"
             },
             {
               "keyName": "email",
-              "condition": "eq",
               "keyValue": "={{ $('Normaliseren & valideren').first().json.email || '__geen__' }}"
             }
           ]
@@ -354,11 +341,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1780,
+        1776,
         0
       ],
       "parameters": {
-        "mode": "runOnceForAllItems",
         "jsCode": "const n = $('Normaliseren & valideren').first().json;\nconst cfg = $('Config').first().json;\nconst issues = [...n.issues];\nconst info = [...n.info];\nconst rows = $input.all().map(i => i.json).filter(r => r && r.customer_id);\n\nconst byId = n.customer_id ? rows.find(r => r.customer_id === n.customer_id) : null;\nconst byEmail = n.email ? rows.find(r => String(r.email || '').toLowerCase() === n.email) : null;\nconst klant = byId || byEmail || null;\n\nif (byId && byEmail && byId.customer_id !== byEmail.customer_id) {\n  issues.push('customer_id (' + byId.customer_id + ') en e-mail (' + byEmail.customer_id + ') horen bij verschillende klanten; customer_id aangehouden');\n}\nif (!n.customer_id && byEmail) info.push('Geen customer_id in survey; klant gevonden via e-mail');\nif (n.customer_id && !byId && byEmail) issues.push('customer_id ' + n.customer_id + ' niet gevonden; klant gevonden via e-mail');\nif (!klant) issues.push('Klant niet gevonden in backoffice (' + (n.customer_id || 'geen customer_id') + ' / ' + (n.email || 'geen e-mail') + ')');\n\nconst arr_totaal = klant ? Number(klant.arr_abonnement || 0) + Number(klant.arr_addons || 0) : 0;\nconst is_topklant = !!klant && arr_totaal >= cfg.arr_topklant_drempel;\n\nlet taal = n.language;\nlet taal_bron = 'survey';\nif (!taal && klant && ['nl', 'en'].includes(klant.taal)) { taal = klant.taal; taal_bron = 'backoffice'; }\nif (!taal) { taal = 'nl'; taal_bron = 'standaard'; issues.push('Taal onbekend; Nederlandse bevestiging verstuurd (standaard)'); }\n\nreturn [{ json: {\n  ...n,\n  issues,\n  info,\n  klant: klant ? {\n    customer_id: klant.customer_id, naam: klant.naam, email: klant.email, plan: klant.plan,\n    arr_abonnement: Number(klant.arr_abonnement || 0), arr_addons: Number(klant.arr_addons || 0),\n    moneybird_contact_id: klant.moneybird_contact_id, cs_owner: klant.cs_owner\n  } : null,\n  klant_gevonden: !!klant,\n  arr_totaal,\n  is_topklant,\n  taal,\n  taal_bron\n}}];"
       },
       "notes": "customer_id gaat voor e-mail. ARR = abonnement + add-ons. Taal: survey → backoffice → nl (gemarkeerd)."
@@ -393,7 +379,6 @@
             }
           ]
         },
-        "looseTypeValidation": false,
         "options": {}
       }
     },
@@ -403,16 +388,14 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.5,
       "position": [
-        2220,
-        -120
+        2224,
+        -112
       ],
       "parameters": {
-        "method": "GET",
         "url": "={{ $('Config').first().json.moneybird_base_url }}/sales_invoices",
         "authentication": "genericCredentialType",
         "genericAuthType": "httpHeaderAuth",
         "sendQuery": true,
-        "specifyQuery": "keypair",
         "queryParameters": {
           "parameters": [
             {
@@ -422,13 +405,13 @@
           ]
         },
         "options": {
-          "timeout": 5000,
           "response": {
             "response": {
               "fullResponse": true,
               "responseFormat": "json"
             }
-          }
+          },
+          "timeout": 5000
         }
       },
       "credentials": {
@@ -449,11 +432,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2440,
-        -220
+        2448,
+        -224
       ],
       "parameters": {
-        "mode": "runOnceForAllItems",
         "jsCode": "const ctx = $('Klant bepalen').first().json;\nconst body = $input.first().json.body;\nif (!Array.isArray(body)) {\n  return [{ json: { ...ctx, factuur_status: 'onbekend', openstaande_facturen: [], openstaand_totaal: 0, max_dagen_over_vervaldatum: 0,\n    issues: [...ctx.issues, 'MoneyBird gaf een onverwacht antwoord; controleer facturen handmatig'] } }];\n}\n// Dagen over vervaldatum t.o.v. het moment van de survey-inzending\nconst peil = new Date(ctx.submitted_at).getTime();\nconst open = body\n  .filter(f => ['open', 'late'].includes(f.state) && Number(f.total_unpaid) > 0)\n  .map(f => ({\n    factuurnummer: f.invoice_id,\n    bedrag: Number(f.total_unpaid),\n    vervaldatum: f.due_date,\n    dagen_over_vervaldatum: Math.max(0, Math.floor((peil - new Date(f.due_date + 'T00:00:00Z').getTime()) / 86400000))\n  }));\nconst totaal = Math.round(open.reduce((s, f) => s + f.bedrag, 0) * 100) / 100;\nreturn [{ json: {\n  ...ctx,\n  factuur_status: open.length ? 'openstaand' : 'geen',\n  openstaande_facturen: open,\n  openstaand_totaal: totaal,\n  max_dagen_over_vervaldatum: open.length ? Math.max(...open.map(f => f.dagen_over_vervaldatum)) : 0\n}}];"
       }
     },
@@ -463,11 +445,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2440,
-        -40
+        2448,
+        -32
       ],
       "parameters": {
-        "mode": "runOnceForAllItems",
         "jsCode": "const ctx = $('Klant bepalen').first().json;\nconst err = $input.first().json.error;\nconst raw = (err && (err.message || err.description)) ? String(err.message || err.description) : '';\nconst code = (raw.match(/^(\\d{3})/) || [])[1];\nconst msg = code ? 'HTTP ' + code : (raw ? raw.slice(0, 80) : 'geen antwoord');\nreturn [{ json: {\n  ...ctx,\n  factuur_status: 'onbekend',\n  openstaande_facturen: [],\n  openstaand_totaal: 0,\n  max_dagen_over_vervaldatum: 0,\n  issues: [...ctx.issues, 'MoneyBird niet bereikbaar na 3 pogingen (' + msg + '); controleer openstaande facturen handmatig']\n}}];"
       },
       "notes": "Geen stop: de opzegging gaat gewoon door naar CS, met een expliciet aandachtspunt."
@@ -478,11 +459,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2440,
-        140
+        2448,
+        144
       ],
       "parameters": {
-        "mode": "runOnceForAllItems",
         "jsCode": "const ctx = $input.first().json;\nreturn [{ json: { ...ctx, factuur_status: 'n.v.t.', openstaande_facturen: [], openstaand_totaal: 0, max_dagen_over_vervaldatum: 0 } }];"
       }
     },
@@ -492,7 +472,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        2700,
+        2704,
         0
       ],
       "parameters": {
@@ -516,7 +496,6 @@
             }
           ]
         },
-        "looseTypeValidation": false,
         "options": {}
       }
     },
@@ -526,8 +505,8 @@
       "type": "@n8n/n8n-nodes-langchain.informationExtractor",
       "typeVersion": 1.2,
       "position": [
-        2920,
-        -220
+        2864,
+        -240
       ],
       "parameters": {
         "text": "={{ $json.open_feedback }}",
@@ -549,14 +528,14 @@
       "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
       "typeVersion": 1.1,
       "position": [
-        2920,
-        0
+        2880,
+        -80
       ],
       "parameters": {
         "modelName": "models/gemini-3.5-flash-lite",
         "options": {
-          "temperature": 0,
-          "maxOutputTokens": 400
+          "maxOutputTokens": 400,
+          "temperature": 0
         }
       },
       "credentials": {
@@ -572,11 +551,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3160,
-        -300
+        3168,
+        -304
       ],
       "parameters": {
-        "mode": "runOnceForAllItems",
         "jsCode": "const ctx = $('Feedback aanwezig?').first().json;\nconst CATS = ['onboarding_begeleiding', 'templates_content', 'functionaliteit', 'integraties', 'prijs_waarde', 'tijd_capaciteit', 'support', 'overig'];\nconst o = ($input.first().json && $input.first().json.output) || {};\nlet samenvatting = String(o.samenvatting || '').replace(/\\s+/g, ' ').trim();\nconst woorden = samenvatting ? samenvatting.split(' ') : [];\nif (woorden.length > 40) samenvatting = woorden.slice(0, 40).join(' ') + '…';\nconst categorie = CATS.includes(o.categorie) ? o.categorie : 'overig';\n// Laag 2 (deterministisch): lijkt de klanttekst op een instructie aan een AI? Dan schrijven we geen AI-tekst weg.\nconst INJECTIE = /(negeer|vergeet|ignore|disregard).{0,40}(instructie|instruction|prompt|regels|rules)|system ?prompt|you are now|je bent nu|act as/i;\nconst verdacht = INJECTIE.test(ctx.open_feedback) || INJECTIE.test(samenvatting);\nlet ai;\nif (verdacht || o.bruikbaar === false) ai = { status: verdacht ? 'verdacht' : 'niet_bruikbaar' };\nelse if (samenvatting.length < 3) ai = { status: 'ongeldig' };\nelse ai = { status: 'ok', samenvatting, categorie, wil_hulp: o.wil_hulp === true, categorie_gecorrigeerd: categorie !== o.categorie };\nconst issues = verdacht ? [...ctx.issues, 'Open antwoord lijkt instructies aan een AI te bevatten; AI-samenvatting weggelaten, lees het origineel'] : ctx.issues;\nreturn [{ json: { ...ctx, issues, ai } }];"
       },
       "notes": "Vertrouw de AI niet blind: categorie moet in de lijst staan (anders \"overig\"), lengte begrensd, lege output = weggooien."
@@ -587,11 +565,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3160,
-        -120
+        3168,
+        -112
       ],
       "parameters": {
-        "mode": "runOnceForAllItems",
         "jsCode": "const ctx = $('Feedback aanwezig?').first().json;\nconst err = $input.first().json.error;\nreturn [{ json: { ...ctx, ai: { status: 'mislukt', fout: String((err && err.message) || 'onbekend').slice(0, 120) } } }];"
       }
     },
@@ -601,11 +578,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3420,
+        3424,
         0
       ],
       "parameters": {
-        "mode": "runOnceForAllItems",
         "jsCode": "const c = $input.first().json;\nconst cfg = $('Config').first().json;\n\nconst LABEL = {\n  personal_offer: 'Persoonlijk aanbod',\n  pause: 'Pauze aangevraagd',\n  discount_20: 'Korting 20% aangevraagd',\n  cancel: 'Opzegging definitief',\n  te_verifieren: 'Te verifiëren'\n};\n// Eén deal per klant. Meerdere keuzes? De meest persoonlijke behoud-actie wint:\n// iedere behoudoptie betekent dat de klant wil blijven, en CS voert dat gesprek.\nconst PRIO = ['personal_offer', 'pause', 'discount_20', 'cancel'];\n\nconst issues = [...c.issues];\nconst stage_key = (!c.klant_gevonden || c.choices.length === 0) ? 'te_verifieren' : PRIO.find(k => c.choices.includes(k));\nconst ook = c.choices.filter(k => k !== stage_key).map(k => LABEL[k]);\nconst AANVRAAG = { pause: 'pauzeaanvraag', discount_20: 'kortingsaanvraag (20%)' };\nconst wanneer = new Date(c.submitted_at);\nconst wanneerTekst = isNaN(wanneer) ? c.submitted_at : wanneer.toLocaleString('nl-NL', { timeZone: 'Europe/Amsterdam', dateStyle: 'medium', timeStyle: 'short' });\n\nconst eur = n => '€ ' + Number(n).toLocaleString('nl-NL', { maximumFractionDigits: 2 });\nconst naam = c.klant ? c.klant.naam : (c.email || 'onbekende klant');\nconst openFactuur = c.factuur_status === 'openstaand';\nconst behoudAanvraag = c.choices.filter(k => k === 'pause' || k === 'discount_20');\nconst factuurAandacht = openFactuur && behoudAanvraag.length > 0;\n\nlet factuurTekst;\nif (openFactuur) {\n  factuurTekst = c.openstaande_facturen.map(f => eur(f.bedrag) + ' (factuur ' + f.factuurnummer + ', ' +\n    (f.dagen_over_vervaldatum > 0 ? f.dagen_over_vervaldatum + ' dagen over vervaldatum' : 'nog niet vervallen') + ')').join('; ');\n  if (factuurAandacht) factuurTekst += ' · LET OP: aandachtspunt bij ' + behoudAanvraag.map(k => AANVRAAG[k]).join(' en ');\n} else if (c.factuur_status === 'geen') factuurTekst = 'geen openstaande facturen';\nelse if (c.factuur_status === 'onbekend') factuurTekst = 'ONBEKEND: MoneyBird niet bereikbaar, controleer handmatig';\nelse factuurTekst = 'niet gecontroleerd (klant onbekend)';\n\n// --- Taak voor CS: één taak met alle redenen ---\nconst redenen = [];\nif (c.is_topklant) redenen.push('Topklant (ARR ' + eur(c.arr_totaal) + ' incl. add-ons): altijd persoonlijk contact');\nif (stage_key === 'personal_offer') redenen.push('Klant vraagt om een persoonlijk aanbod');\nif (factuurAandacht) redenen.push('Openstaande factuur ' + eur(c.openstaand_totaal) + ' bij ' + behoudAanvraag.map(k => AANVRAAG[k]).join(' en '));\nif (!c.klant_gevonden) redenen.push('Klant niet gevonden: identificeer de klant en verwerk de opzegging');\nif (c.factuur_status === 'onbekend') redenen.push('MoneyBird-check mislukt: controleer facturen handmatig');\nconst taak_nodig = redenen.length > 0 || issues.length > 0;\nif (redenen.length === 0 && issues.length > 0) redenen.push('Controleer de aandachtspunten');\n\nconst urgent = c.is_topklant || !c.klant_gevonden;\nconst deadline = new Date(Date.now() + (urgent ? 1 : 2) * 86400000).toISOString();\nconst taak = {\n  titel: (c.is_topklant ? 'Persoonlijk contact topklant: ' : 'Opvolgen opzegsurvey: ') + naam + ' (' + LABEL[stage_key] + ')',\n  notitie: ['Waarom:'].concat(redenen.map(r => '• ' + r))\n    .concat(issues.length ? ['', 'Aandachtspunten:'].concat(issues.map(i => '• ' + i)) : [])\n    .concat(['', 'Openstaande facturen: ' + factuurTekst, 'Survey: ' + c.submission_id + (c.klant ? ' · CS-eigenaar: ' + c.klant.cs_owner : '')])\n    .join('\\n'),\n  deadline\n};\n\n// --- Deal-notitie ---\nconst ai = c.ai;\nconst regels = [\n  'Opzegsurvey ' + c.submission_id + ' (' + wanneerTekst + ')',\n  'Klant: ' + (c.klant\n    ? c.klant.naam + ' (' + c.klant.customer_id + ', ' + c.klant.plan + ') · ARR ' + eur(c.arr_totaal) + ' = abonnement ' + eur(c.klant.arr_abonnement) + ' + add-ons ' + eur(c.klant.arr_addons) + (c.is_topklant ? ' · TOPKLANT' : '')\n    : 'NIET GEVONDEN in backoffice (' + (c.email || 'geen e-mail') + ')'),\n  'Survey-keuze: ' + (c.choices.length ? c.choices.map(k => LABEL[k]).join(' + ') : '(geen geldige keuze)'),\n  'Deal-stage: ' + LABEL[stage_key] + (stage_key === 'te_verifieren' ? ' (eerst klant/keuze verifiëren)' : (ook.length ? ' (gaat voor: ' + ook.join(', ') + ')' : '')),\n];\nif (c.choices.includes('pause')) {\n  regels.push('Pauze: ' + (c.pause_months ? c.pause_months + ' maanden' : 'onbekend') +\n    (c.pause_months_gevraagd && c.pause_months_gevraagd !== c.pause_months ? ' (gevraagd: ' + c.pause_months_gevraagd + ')' : ''));\n}\nregels.push('Reden: ' + (c.reason || 'onbekend') + (c.reason_detail ? ' – \"' + c.reason_detail + '\"' : ''));\nregels.push('Openstaande facturen (MoneyBird): ' + factuurTekst);\nregels.push('Taal: ' + c.taal + ' (' + c.taal_bron + '), bevestigingsmail ' + c.taal.toUpperCase());\nregels.push('Open antwoord: ' + (c.open_feedback ? '\"' + c.open_feedback + '\"' : '(leeg)'));\nif (ai && ai.status === 'ok') regels.push('AI-samenvatting (automatisch, controleer): ' + ai.samenvatting + ' [categorie: ' + ai.categorie + (ai.wil_hulp ? ', vraagt om hulp' : '') + ']');\nelse if (ai) regels.push('AI-samenvatting: niet beschikbaar (' + ai.status + ')');\nif (issues.length) regels.push('Aandachtspunten: ' + issues.join(' · '));\nif (c.info.length) regels.push('Info: ' + c.info.join(' · '));\n\n// --- Slack (mock) ---\nconst slack = [];\nif (c.is_topklant) {\n  slack.push({ channel: cfg.slack_kanaal_topklant, severity: 'info',\n    text: ':star: Topklant ' + naam + ' (ARR ' + eur(c.arr_totaal) + ') heeft de opzegsurvey ingevuld: ' + LABEL[stage_key] +\n      (ook.length ? ' (+ ' + ook.join(', ') + ')' : '') + '. Taak staat klaar' + (c.klant ? ' voor ' + c.klant.cs_owner : '') + '.' +\n      (openFactuur ? ' Openstaand: ' + eur(c.openstaand_totaal) + '.' : '') });\n}\nif (!c.klant_gevonden || c.factuur_status === 'onbekend') {\n  slack.push({ channel: cfg.slack_kanaal_alerts, severity: 'warning',\n    text: ':warning: Opzegsurvey ' + c.submission_id + ' vraagt aandacht: ' +\n      (!c.klant_gevonden ? 'klant niet gevonden (' + (c.email || 'geen e-mail') + '), deal staat in \"Te verifiëren\"' : 'MoneyBird niet bereikbaar bij ' + naam) + '.' });\n}\n\nreturn [{ json: {\n  ...c,\n  issues,\n  stage_key,\n  stage_label: LABEL[stage_key],\n  stage_id: cfg.ac_stages[stage_key],\n  ac_email: c.email || (c.klant && c.klant.email) || '',\n  deal_titel: 'Opzegsurvey – ' + naam + ' – ' + LABEL[stage_key],\n  deal_waarde_cent: Math.round(c.arr_totaal * 100),\n  deal_notitie: regels.join('\\n'),\n  tag_id: cfg.ac_tags[c.taal],\n  taak_nodig,\n  taak,\n  slack_berichten: slack,\n  slack_nodig: slack.length > 0\n}}];"
       },
       "notes": "Alle business-regels op één plek: stage-prioriteit, topklant, factuur-aandachtspunt, taal, taak/Slack."
@@ -616,12 +592,10 @@
       "type": "n8n-nodes-base.activeCampaign",
       "typeVersion": 1,
       "position": [
-        3700,
+        3696,
         0
       ],
       "parameters": {
-        "resource": "contact",
-        "operation": "create",
         "email": "={{ $json.ac_email }}",
         "updateIfExists": true,
         "additionalFields": {}
@@ -647,7 +621,6 @@
         0
       ],
       "parameters": {
-        "method": "GET",
         "url": "={{ $('Config').first().json.ac_base_url }}/api/3/contacts/{{ $json.id }}/deals",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "activeCampaignApi",
@@ -672,11 +645,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        4140,
+        4144,
         0
       ],
       "parameters": {
-        "mode": "runOnceForAllItems",
         "jsCode": "const ctx = $('Routing bepalen').first().json;\nconst cfg = $('Config').first().json;\nconst contact_id = String($('AC: contact synchroniseren').first().json.id);\nconst deals = ($input.first().json.deals || [])\n  .filter(d => String(d.group) === String(cfg.ac_pipeline_id) && String(d.status) === '0')\n  .sort((a, b) => new Date(b.mdate || b.cdate) - new Date(a.mdate || a.cdate));\nconst issues = [...ctx.issues];\nif (deals.length > 1) issues.push(deals.length + ' open opzeg-deals voor dit contact; de meest recente is bijgewerkt');\nconst bestaand = deals[0] || null;\nreturn [{ json: {\n  ...ctx,\n  issues,\n  contact_id,\n  bestaande_deal_id: bestaand ? String(bestaand.id) : '',\n  bestaande_deal_titel: bestaand ? bestaand.title : ''\n}}];"
       },
       "notes": "Regel (e): is er al een open deal in de opzeg-pipeline voor dit contact? Dan bijwerken i.p.v. dubbel aanmaken."
@@ -687,7 +659,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        4360,
+        4368,
         0
       ],
       "parameters": {
@@ -711,7 +683,6 @@
             }
           ]
         },
-        "looseTypeValidation": false,
         "options": {}
       }
     },
@@ -721,8 +692,8 @@
       "type": "n8n-nodes-base.activeCampaign",
       "typeVersion": 1,
       "position": [
-        4580,
-        -100
+        4576,
+        -96
       ],
       "parameters": {
         "resource": "deal",
@@ -730,8 +701,8 @@
         "dealId": "={{ Number($json.bestaande_deal_id) }}",
         "updateFields": {
           "title": "={{ $json.deal_titel }}",
-          "stage": "={{ $json.stage_id }}",
-          "value": "={{ $json.deal_waarde_cent }}"
+          "value": "={{ $json.deal_waarde_cent }}",
+          "stage": "={{ $json.stage_id }}"
         }
       },
       "credentials": {
@@ -750,16 +721,14 @@
       "type": "n8n-nodes-base.activeCampaign",
       "typeVersion": 1,
       "position": [
-        4580,
-        100
+        4576,
+        96
       ],
       "parameters": {
         "resource": "deal",
-        "operation": "create",
         "title": "={{ $json.deal_titel }}",
         "contact": "={{ Number($json.contact_id) }}",
         "value": "={{ $json.deal_waarde_cent }}",
-        "currency": "eur",
         "group": "={{ $('Config').first().json.ac_pipeline_id }}",
         "stage": "={{ $json.stage_id }}",
         "owner": "={{ $('Config').first().json.ac_owner_id }}",
@@ -785,7 +754,6 @@
         0
       ],
       "parameters": {
-        "mode": "runOnceForAllItems",
         "jsCode": "const ctx = $('Open opzeg-deal zoeken').first().json;\nconst r = $input.first().json;\nconst deal = r.deal || r;\nreturn [{ json: { ...ctx, deal_id: String(deal.id), deal_actie: ctx.bestaande_deal_id ? 'bijgewerkt' : 'aangemaakt' } }];"
       }
     },
@@ -795,7 +763,7 @@
       "type": "n8n-nodes-base.activeCampaign",
       "typeVersion": 1,
       "position": [
-        5020,
+        5024,
         0
       ],
       "parameters": {
@@ -820,14 +788,14 @@
       "type": "n8n-nodes-base.activeCampaign",
       "typeVersion": 1,
       "position": [
-        5240,
+        5248,
         0
       ],
       "parameters": {
         "resource": "contactTag",
         "operation": "add",
-        "contactId": "={{ Number($('Deal vastleggen').first().json.contact_id) }}",
-        "tagId": "={{ $('Deal vastleggen').first().json.tag_id }}"
+        "tagId": "={{ $('Deal vastleggen').first().json.tag_id }}",
+        "contactId": "={{ Number($('Deal vastleggen').first().json.contact_id) }}"
       },
       "credentials": {
         "activeCampaignApi": {
@@ -846,7 +814,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        5460,
+        5456,
         0
       ],
       "parameters": {
@@ -870,7 +838,6 @@
             }
           ]
         },
-        "looseTypeValidation": false,
         "options": {}
       }
     },
@@ -881,7 +848,7 @@
       "typeVersion": 4.5,
       "position": [
         5680,
-        -100
+        -96
       ],
       "parameters": {
         "method": "POST",
@@ -889,7 +856,6 @@
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "activeCampaignApi",
         "sendBody": true,
-        "contentType": "json",
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ dealTask: { title: $('Deal vastleggen').first().json.taak.titel, ownerType: 'deal', relid: Number($('Deal vastleggen').first().json.deal_id), status: 0, note: $('Deal vastleggen').first().json.taak.notitie, duedate: $('Deal vastleggen').first().json.taak.deadline, dealTasktype: Number($('Config').first().json.ac_tasktype_id), assignee: Number($('Config').first().json.ac_owner_id) } }) }}",
         "options": {
@@ -913,7 +879,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        5900,
+        5904,
         0
       ],
       "parameters": {
@@ -937,7 +903,6 @@
             }
           ]
         },
-        "looseTypeValidation": false,
         "options": {}
       }
     },
@@ -947,11 +912,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        6120,
-        -100
+        6128,
+        -96
       ],
       "parameters": {
-        "mode": "runOnceForAllItems",
         "jsCode": "const ctx = $('Deal vastleggen').first().json;\nreturn ctx.slack_berichten.map(m => ({ json: {\n  channel: m.channel,\n  severity: m.severity,\n  submission_id: ctx.submission_id,\n  text: m.text,\n  source: 'opzegsurvey',\n  created_at: new Date().toISOString()\n}}));"
       }
     },
@@ -961,15 +925,13 @@
       "type": "n8n-nodes-base.dataTable",
       "typeVersion": 1.1,
       "position": [
-        6340,
-        -100
+        6336,
+        -96
       ],
       "parameters": {
-        "resource": "row",
-        "operation": "insert",
         "dataTableId": {
           "__rl": true,
-          "value": "slack_messages",
+          "value": "c5_slack_messages",
           "mode": "name"
         },
         "columns": {
@@ -980,7 +942,7 @@
         },
         "options": {}
       },
-      "notes": "Mock van Slack: elk bericht wordt een rij in slack_messages. In productie: Slack-node (chat.postMessage) met dezelfde tekst."
+      "notes": "Mock van Slack: elk bericht wordt een rij in c5_slack_messages. In productie: Slack-node (chat.postMessage) met dezelfde tekst."
     },
     {
       "id": "2945a238-2f6f-465d-b4ad-f6988369a555",
@@ -992,7 +954,6 @@
         0
       ],
       "parameters": {
-        "resource": "row",
         "operation": "update",
         "dataTableId": {
           "__rl": true,
@@ -1004,7 +965,6 @@
           "conditions": [
             {
               "keyName": "submission_id",
-              "condition": "eq",
               "keyValue": "={{ $('Deal vastleggen').first().json.submission_id }}"
             }
           ]
@@ -1463,7 +1423,8 @@
     "saveDataErrorExecution": "all",
     "errorWorkflow": "ze8WVEIUB0woZuMt",
     "executionOrder": "v1",
-    "timezone": "Europe/Amsterdam"
+    "timezone": "Europe/Amsterdam",
+    "binaryMode": "separate"
   },
   "tags": [],
   "isArchived": false

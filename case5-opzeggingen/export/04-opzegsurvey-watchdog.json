@@ -1,6 +1,6 @@
 {
   "id": "1xoGEkyEVSpVCP3n",
-  "name": "04 Opzegsurvey – Watchdog",
+  "name": "04 Opzegsurvey – Watcher",
   "active": true,
   "nodes": [
     {
@@ -10,7 +10,7 @@
       "typeVersion": 1.2,
       "position": [
         0,
-        -100
+        -96
       ],
       "parameters": {
         "rule": {
@@ -30,7 +30,7 @@
       "typeVersion": 1,
       "position": [
         0,
-        100
+        96
       ],
       "parameters": {}
     },
@@ -40,11 +40,10 @@
       "type": "n8n-nodes-base.dataTable",
       "typeVersion": 1.1,
       "position": [
-        260,
+        256,
         0
       ],
       "parameters": {
-        "resource": "row",
         "operation": "get",
         "dataTableId": {
           "__rl": true,
@@ -56,7 +55,6 @@
           "conditions": [
             {
               "keyName": "status",
-              "condition": "eq",
               "keyValue": "received"
             }
           ]
@@ -72,12 +70,11 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        520,
+        528,
         0
       ],
       "parameters": {
-        "mode": "runOnceForAllItems",
-        "jsCode": "const grens = Date.now() - 10 * 60 * 1000;\nconst vast = $input.all()\n  .map(i => i.json)\n  .filter(r => r.submission_id && r.received_at && new Date(r.received_at).getTime() < grens);\nif (vast.length === 0) return [];\nconst regels = vast.map(r => '• ' + r.submission_id + ' (' + (r.email || 'geen e-mail') + ', ontvangen ' + r.received_at + ')');\nreturn [{ json: {\n  channel: '#cs-alerts',\n  severity: 'critical',\n  submission_id: vast.map(r => r.submission_id).join(','),\n  text: ':warning: *' + vast.length + ' opzegging(en) niet volledig verwerkt*\\n' + regels.join('\\n') + '\\nActie: verwerk handmatig of herstart de inzending; ruwe payload staat in submission_log.',\n  source: 'watchdog',\n  created_at: new Date().toISOString()\n}}];"
+        "jsCode": "const grens = Date.now() - 10 * 60 * 1000;\nconst vast = $input.all()\n  .map(i => i.json)\n  .filter(r => r.submission_id && r.received_at && new Date(r.received_at).getTime() < grens);\nif (vast.length === 0) return [];\nconst regels = vast.map(r => '• ' + r.submission_id + ' (' + (r.email || 'geen e-mail') + ', ontvangen ' + r.received_at + ')');\nreturn [{ json: {\n  channel: '#cs-alerts',\n  severity: 'critical',\n  submission_id: vast.map(r => r.submission_id).join(','),\n  text: ':warning: *' + vast.length + ' opzegging(en) niet volledig verwerkt*\\n' + regels.join('\\n') + '\\nActie: verwerk handmatig of herstart de inzending; ruwe payload staat in submission_log (status nu escalated, je krijgt deze melding één keer).',\n  source: 'watchdog',\n  created_at: new Date().toISOString()\n}}];"
       },
       "notes": "Geeft 0 items terug als alles in orde is, dan stopt de flow vanzelf."
     },
@@ -87,15 +84,13 @@
       "type": "n8n-nodes-base.dataTable",
       "typeVersion": 1.1,
       "position": [
-        780,
+        784,
         0
       ],
       "parameters": {
-        "resource": "row",
-        "operation": "insert",
         "dataTableId": {
           "__rl": true,
-          "value": "slack_messages",
+          "value": "c5_slack_messages",
           "mode": "name"
         },
         "columns": {
@@ -106,6 +101,57 @@
         },
         "options": {}
       }
+    },
+    {
+      "id": "7d3c2a10-5e4f-4b6a-9c8d-1f2e3a4b5c6d",
+      "name": "Per inzending",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        0
+      ],
+      "parameters": {
+        "jsCode": "const ids = String($('Ouder dan 10 minuten?').first().json.submission_id || '').split(',').filter(Boolean);\nreturn ids.map(id => ({ json: { submission_id: id } }));"
+      },
+      "notes": "Eén item per gemelde inzending, zodat de volgende stap ze allemaal markeert."
+    },
+    {
+      "id": "8e4d3b21-6f5a-4c7b-8d9e-2a3b4c5d6e7f",
+      "name": "Markeer als gemeld",
+      "type": "n8n-nodes-base.dataTable",
+      "typeVersion": 1.1,
+      "position": [
+        1296,
+        0
+      ],
+      "parameters": {
+        "operation": "update",
+        "dataTableId": {
+          "__rl": true,
+          "value": "submission_log",
+          "mode": "name"
+        },
+        "matchType": "allConditions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "submission_id",
+              "keyValue": "={{ $json.submission_id }}"
+            }
+          ]
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "status": "escalated"
+          },
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "notes": "Status received -> escalated: CS is gewaarschuwd, dus de watchdog meldt deze inzending niet elk kwartier opnieuw. De rij blijft in submission_log staan tot iemand hem afhandelt."
     }
   ],
   "connections": {
@@ -152,11 +198,34 @@
           }
         ]
       ]
+    },
+    "Slack-alert (mock)": {
+      "main": [
+        [
+          {
+            "node": "Per inzending",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Per inzending": {
+      "main": [
+        [
+          {
+            "node": "Markeer als gemeld",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
     "executionOrder": "v1",
-    "timezone": "Europe/Amsterdam"
+    "timezone": "Europe/Amsterdam",
+    "binaryMode": "separate"
   },
   "tags": [],
   "isArchived": false

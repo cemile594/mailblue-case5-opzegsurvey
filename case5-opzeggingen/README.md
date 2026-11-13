@@ -23,7 +23,7 @@ Een klant vult de opzegsurvey in en kiest daarin: **definitief opzeggen**, **pau
 | 00 Setup – Mock data | Maakt de mock-"software" aan in n8n Data Tables en vult die met de case-data. Dient ook als demo-reset |
 | 01 Mock – MoneyBird API | Mock van `GET /api/v2/{administratie}/sales_invoices`, met dezelfde filtersyntax en hetzelfde antwoordformaat als MoneyBird |
 | 03 Foutafhandeling | Error-workflow van 02: crasht er toch iets, dan volgt een alert in `#cs-alerts` met een link naar de execution |
-| 04 Watchdog | Elk kwartier: staat er nog een inzending op `received` die ouder is dan 10 minuten? Dan volgt een alert |
+| 04 Watchdog | Elk kwartier: staat er nog een inzending op `received` die ouder is dan 10 minuten? Dan volgt één alert en gaat de status naar `escalated`, zodat CS niet elk kwartier dezelfde melding krijgt |
 
 ```mermaid
 flowchart LR
@@ -56,7 +56,7 @@ flowchart LR
 | **CRM: MailBlue / ActiveCampaign** | **Echt** (ActiveCampaign-trial, API v3) | MailBlue draait op ActiveCampaign. Juist stages, de check op een bestaande deal, notities, tags en taken zijn de kern van de case, en die wil je tegen de echte API zien werken |
 | Backoffice | n8n **Data Table** `backoffice_customers` | Dit is de "data store" uit de case. Werkt zonder externe OAuth en is in de video live te laten zien |
 | MoneyBird | **Mock-API** (workflow 01) op een Data Table | Hetzelfde endpoint, dezelfde filter (`state:open\|late,contact_id:…`) en dezelfde velden (`total_unpaid`, `due_date`, `state`) als MoneyBird. Voor productie wissel je alleen de base-URL en de credential. **Storing testen = workflow 01 uitzetten** |
-| Slack | Mock: Data Table `slack_messages` | De case staat een mock toe. De berichttekst is precies wat de Slack-node in productie post |
+| Slack | Mock: Data Table `c5_slack_messages` | De case staat een mock toe. De berichttekst is precies wat de Slack-node in productie post |
 | AI | **Echt**: Google Gemini (flash-lite) | Goedkoop en snel. Het model is via de n8n-credential te wisselen (bijv. Claude) |
 
 ## 4. De hoofdworkflow (02), node voor node
@@ -118,12 +118,12 @@ flowchart LR
 | MoneyBird reageert niet | 3 pogingen, daarna "controleer handmatig" in de notitie en de taak, en een alert |
 | AI faalt of geeft onzin | Flow gaat door zonder AI (§6) |
 | Dubbele webhook | 200 `duplicate`, niets dubbel |
-| ActiveCampaign onbereikbaar of onverwachte crash | 3 pogingen per AC-call. Daarna error-workflow **03** (alert met execution-link). De inzending staat in `submission_log`, dus watchdog **04** blijft melden tot iemand hem afhandelt |
+| ActiveCampaign onbereikbaar of onverwachte crash | 3 pogingen per AC-call. Daarna error-workflow **03** (alert met execution-link). De inzending staat in `submission_log`, dus watchdog **04** meldt hem na 10 minuten (één keer, daarna status `escalated` tot iemand hem afhandelt) |
 
 ## 8. Datamodel
 
 - **ActiveCampaign**: pipeline *Opzeg-pipeline* met stages *Te verifiëren · Persoonlijk aanbod · Pauze aangevraagd · Korting 20% aangevraagd · Opzegging definitief*. Tags `opzegsurvey-bevestiging-nl/-en`. Taaktype Call.
-- **Data Tables**: `backoffice_customers`, `moneybird_invoices`, `slack_messages`, `submission_log`.
+- **Data Tables**: `backoffice_customers`, `moneybird_invoices`, `c5_slack_messages`, `submission_log`.
 - Alle data is fictief en staat in [`mock-data/`](mock-data/).
 
 ## 9. Testscenario's

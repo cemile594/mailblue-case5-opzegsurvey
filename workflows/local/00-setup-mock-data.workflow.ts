@@ -9,13 +9,13 @@ import { workflow, node, links } from '@n8n-as-code/transformer';
 // Property name                    Node type (short)         Flags
 // HandmatigStarten                   manualTrigger
 // WebhookSetupMockData               webhook
-// MaakTabelBackofficeCustomers       dataTable                  [executeOnce]
-// MaakTabelMoneybirdInvoices         dataTable                  [executeOnce]
-// MaakTabelSlackMessages             dataTable                  [executeOnce]
-// MaakTabelSubmissionLog             dataTable                  [executeOnce]
+// MaakTabelBackofficeCustomers       dataTable                  [onError→regular] [executeOnce]
+// MaakTabelMoneybirdInvoices         dataTable                  [onError→regular] [executeOnce]
+// MaakTabelC5SlackMessages           dataTable                  [onError→regular] [executeOnce]
+// MaakTabelSubmissionLog             dataTable                  [onError→regular] [executeOnce]
 // LeegBackofficeCustomers            dataTable                  [executeOnce]
 // LeegMoneybirdInvoices              dataTable                  [executeOnce]
-// LeegSlackMessages                  dataTable                  [executeOnce]
+// LeegC5SlackMessages                dataTable                  [executeOnce]
 // LeegSubmissionLog                  dataTable                  [executeOnce]
 // BackofficeRijenMock                code                       [executeOnce]
 // BackofficeInvoegen                 dataTable
@@ -28,11 +28,11 @@ import { workflow, node, links } from '@n8n-as-code/transformer';
 // HandmatigStarten
 //    → MaakTabelBackofficeCustomers
 //      → MaakTabelMoneybirdInvoices
-//        → MaakTabelSlackMessages
+//        → MaakTabelC5SlackMessages
 //          → MaakTabelSubmissionLog
 //            → LeegBackofficeCustomers
 //              → LeegMoneybirdInvoices
-//                → LeegSlackMessages
+//                → LeegC5SlackMessages
 //                  → LeegSubmissionLog
 //                    → BackofficeRijenMock
 //                      → BackofficeInvoegen
@@ -90,6 +90,7 @@ export class _00SetupMockDataDataTablesWorkflow {
         type: 'n8n-nodes-base.dataTable',
         version: 1.1,
         position: [260, 0],
+        onError: 'continueRegularOutput',
         executeOnce: true,
     })
     MaakTabelBackofficeCustomers = {
@@ -147,6 +148,7 @@ export class _00SetupMockDataDataTablesWorkflow {
         type: 'n8n-nodes-base.dataTable',
         version: 1.1,
         position: [500, 0],
+        onError: 'continueRegularOutput',
         executeOnce: true,
     })
     MaakTabelMoneybirdInvoices = {
@@ -200,16 +202,18 @@ export class _00SetupMockDataDataTablesWorkflow {
 
     @node({
         id: '2c133b6a-5808-4873-9b21-20e0508f9417',
-        name: 'Maak tabel slack_messages',
+        name: 'Maak tabel c5_slack_messages',
         type: 'n8n-nodes-base.dataTable',
         version: 1.1,
         position: [740, 0],
+        onError: 'continueRegularOutput',
         executeOnce: true,
+        notes: 'Prefix c5_: n8n zoekt Data Tables op naam met een deelmatch, dus "slack_messages" vond ook c4_slack_messages van case 4 op dezelfde instance.',
     })
-    MaakTabelSlackMessages = {
+    MaakTabelC5SlackMessages = {
         resource: 'table',
         operation: 'create',
-        tableName: 'slack_messages',
+        tableName: 'c5_slack_messages',
         columns: {
             column: [
                 {
@@ -249,6 +253,7 @@ export class _00SetupMockDataDataTablesWorkflow {
         type: 'n8n-nodes-base.dataTable',
         version: 1.1,
         position: [980, 0],
+        onError: 'continueRegularOutput',
         executeOnce: true,
     })
     MaakTabelSubmissionLog = {
@@ -342,18 +347,18 @@ export class _00SetupMockDataDataTablesWorkflow {
 
     @node({
         id: 'c94634f4-1b4e-4e68-b421-cefe275d3daf',
-        name: 'Leeg slack_messages',
+        name: 'Leeg c5_slack_messages',
         type: 'n8n-nodes-base.dataTable',
         version: 1.1,
         position: [1700, 0],
         executeOnce: true,
     })
-    LeegSlackMessages = {
+    LeegC5SlackMessages = {
         resource: 'table',
         operation: 'clear',
         dataTableId: {
             __rl: true,
-            value: 'slack_messages',
+            value: 'c5_slack_messages',
             mode: 'name',
         },
     };
@@ -544,10 +549,10 @@ return rows.map(r => ({ json: r }));`,
         mode: 'runOnceForAllItems',
         jsCode: `return [{ json: {
   status: 'ok',
-  tabellen: ['backoffice_customers', 'moneybird_invoices', 'slack_messages', 'submission_log'],
+  tabellen: ['backoffice_customers', 'moneybird_invoices', 'c5_slack_messages', 'submission_log'],
   backoffice_rijen: $('Backoffice-rijen (mock)').all().length,
   moneybird_rijen: $input.all().length,
-  opmerking: 'slack_messages en submission_log zijn geleegd (demo-reset).'
+  opmerking: 'c5_slack_messages en submission_log zijn geleegd (demo-reset).'
 }}];`,
     };
 
@@ -560,12 +565,12 @@ return rows.map(r => ({ json: r }));`,
         this.HandmatigStarten.out(0).to(this.MaakTabelBackofficeCustomers.in(0));
         this.WebhookSetupMockData.out(0).to(this.MaakTabelBackofficeCustomers.in(0));
         this.MaakTabelBackofficeCustomers.out(0).to(this.MaakTabelMoneybirdInvoices.in(0));
-        this.MaakTabelMoneybirdInvoices.out(0).to(this.MaakTabelSlackMessages.in(0));
-        this.MaakTabelSlackMessages.out(0).to(this.MaakTabelSubmissionLog.in(0));
+        this.MaakTabelMoneybirdInvoices.out(0).to(this.MaakTabelC5SlackMessages.in(0));
+        this.MaakTabelC5SlackMessages.out(0).to(this.MaakTabelSubmissionLog.in(0));
         this.MaakTabelSubmissionLog.out(0).to(this.LeegBackofficeCustomers.in(0));
         this.LeegBackofficeCustomers.out(0).to(this.LeegMoneybirdInvoices.in(0));
-        this.LeegMoneybirdInvoices.out(0).to(this.LeegSlackMessages.in(0));
-        this.LeegSlackMessages.out(0).to(this.LeegSubmissionLog.in(0));
+        this.LeegMoneybirdInvoices.out(0).to(this.LeegC5SlackMessages.in(0));
+        this.LeegC5SlackMessages.out(0).to(this.LeegSubmissionLog.in(0));
         this.LeegSubmissionLog.out(0).to(this.BackofficeRijenMock.in(0));
         this.BackofficeRijenMock.out(0).to(this.BackofficeInvoegen.in(0));
         this.BackofficeInvoegen.out(0).to(this.MoneybirdFacturenMock.in(0));

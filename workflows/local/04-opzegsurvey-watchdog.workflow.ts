@@ -1,8 +1,8 @@
 import { workflow, node, links } from '@n8n-as-code/transformer';
 
 // <workflow-map>
-// Workflow : 04 Opzegsurvey – Watchdog
-// Nodes   : 5  |  Connections: 4
+// Workflow : 04 Opzegsurvey – Watcher
+// Nodes   : 7  |  Connections: 6
 //
 // NODE INDEX
 // ──────────────────────────────────────────────────────────────────
@@ -12,6 +12,8 @@ import { workflow, node, links } from '@n8n-as-code/transformer';
 // OnverwerkteInzendingen             dataTable                  [alwaysOutput]
 // OuderDan10Minuten                  code
 // SlackAlertMock                     dataTable
+// PerInzending                       code
+// MarkeerAlsGemeld                   dataTable
 //
 // ROUTING MAP
 // ──────────────────────────────────────────────────────────────────
@@ -19,6 +21,8 @@ import { workflow, node, links } from '@n8n-as-code/transformer';
 //    → OnverwerkteInzendingen
 //      → OuderDan10Minuten
 //        → SlackAlertMock
+//          → PerInzending
+//            → MarkeerAlsGemeld
 // HandmatigStarten
 //    → OnverwerkteInzendingen (↩ loop)
 // </workflow-map>
@@ -29,12 +33,12 @@ import { workflow, node, links } from '@n8n-as-code/transformer';
 
 @workflow({
     id: '1xoGEkyEVSpVCP3n',
-    name: '04 Opzegsurvey – Watchdog',
+    name: '04 Opzegsurvey – Watcher',
     active: true,
     isArchived: false,
-    settings: { executionOrder: 'v1', timezone: 'Europe/Amsterdam' },
+    settings: { executionOrder: 'v1', timezone: 'Europe/Amsterdam', binaryMode: 'separate' },
 })
-export class _04OpzegsurveyWatchdogWorkflow {
+export class _04OpzegsurveyWatcherWorkflow {
     // =====================================================================
     // CONFIGURATION DES NOEUDS
     // =====================================================================
@@ -44,7 +48,7 @@ export class _04OpzegsurveyWatchdogWorkflow {
         name: 'Elke 15 minuten',
         type: 'n8n-nodes-base.scheduleTrigger',
         version: 1.2,
-        position: [0, -100],
+        position: [0, -96],
     })
     Elke15Minuten = {
         rule: {
@@ -62,7 +66,7 @@ export class _04OpzegsurveyWatchdogWorkflow {
         name: 'Handmatig starten',
         type: 'n8n-nodes-base.manualTrigger',
         version: 1,
-        position: [0, 100],
+        position: [0, 96],
     })
     HandmatigStarten = {};
 
@@ -71,12 +75,11 @@ export class _04OpzegsurveyWatchdogWorkflow {
         name: 'Onverwerkte inzendingen',
         type: 'n8n-nodes-base.dataTable',
         version: 1.1,
-        position: [260, 0],
+        position: [256, 0],
         alwaysOutputData: true,
         notes: 'Alles wat binnenkwam (status received) maar nooit op processed is gezet.',
     })
     OnverwerkteInzendingen = {
-        resource: 'row',
         operation: 'get',
         dataTableId: {
             __rl: true,
@@ -88,7 +91,6 @@ export class _04OpzegsurveyWatchdogWorkflow {
             conditions: [
                 {
                     keyName: 'status',
-                    condition: 'eq',
                     keyValue: 'received',
                 },
             ],
@@ -101,11 +103,10 @@ export class _04OpzegsurveyWatchdogWorkflow {
         name: 'Ouder dan 10 minuten?',
         type: 'n8n-nodes-base.code',
         version: 2,
-        position: [520, 0],
+        position: [528, 0],
         notes: 'Geeft 0 items terug als alles in orde is, dan stopt de flow vanzelf.',
     })
     OuderDan10Minuten = {
-        mode: 'runOnceForAllItems',
         jsCode: `const grens = Date.now() - 10 * 60 * 1000;
 const vast = $input.all()
   .map(i => i.json)
@@ -116,7 +117,7 @@ return [{ json: {
   channel: '#cs-alerts',
   severity: 'critical',
   submission_id: vast.map(r => r.submission_id).join(','),
-  text: ':warning: *' + vast.length + ' opzegging(en) niet volledig verwerkt*\\n' + regels.join('\\n') + '\\nActie: verwerk handmatig of herstart de inzending; ruwe payload staat in submission_log.',
+  text: ':warning: *' + vast.length + ' opzegging(en) niet volledig verwerkt*\\n' + regels.join('\\n') + '\\nActie: verwerk handmatig of herstart de inzending; ruwe payload staat in submission_log (status nu escalated, je krijgt deze melding één keer).',
   source: 'watchdog',
   created_at: new Date().toISOString()
 }}];`,
@@ -127,19 +128,65 @@ return [{ json: {
         name: 'Slack-alert (mock)',
         type: 'n8n-nodes-base.dataTable',
         version: 1.1,
-        position: [780, 0],
+        position: [784, 0],
     })
     SlackAlertMock = {
-        resource: 'row',
-        operation: 'insert',
         dataTableId: {
             __rl: true,
-            value: 'slack_messages',
+            value: 'c5_slack_messages',
             mode: 'name',
         },
         columns: {
             mappingMode: 'autoMapInputData',
             value: {},
+            matchingColumns: [],
+            schema: [],
+        },
+        options: {},
+    };
+
+    @node({
+        id: '7d3c2a10-5e4f-4b6a-9c8d-1f2e3a4b5c6d',
+        name: 'Per inzending',
+        type: 'n8n-nodes-base.code',
+        version: 2,
+        position: [1040, 0],
+        notes: 'Eén item per gemelde inzending, zodat de volgende stap ze allemaal markeert.',
+    })
+    PerInzending = {
+        jsCode: `const ids = String($('Ouder dan 10 minuten?').first().json.submission_id || '').split(',').filter(Boolean);
+return ids.map(id => ({ json: { submission_id: id } }));`,
+    };
+
+    @node({
+        id: '8e4d3b21-6f5a-4c7b-8d9e-2a3b4c5d6e7f',
+        name: 'Markeer als gemeld',
+        type: 'n8n-nodes-base.dataTable',
+        version: 1.1,
+        position: [1296, 0],
+        notes: 'Status received -> escalated: CS is gewaarschuwd, dus de watchdog meldt deze inzending niet elk kwartier opnieuw. De rij blijft in submission_log staan tot iemand hem afhandelt.',
+    })
+    MarkeerAlsGemeld = {
+        operation: 'update',
+        dataTableId: {
+            __rl: true,
+            value: 'submission_log',
+            mode: 'name',
+        },
+        matchType: 'allConditions',
+        filters: {
+            conditions: [
+                {
+                    keyName: 'submission_id',
+                    keyValue: '={{ $json.submission_id }}',
+                },
+            ],
+        },
+        columns: {
+            mappingMode: 'defineBelow',
+            value: {
+                status: 'escalated',
+            },
             matchingColumns: [],
             schema: [],
         },
@@ -156,5 +203,7 @@ return [{ json: {
         this.HandmatigStarten.out(0).to(this.OnverwerkteInzendingen.in(0));
         this.OnverwerkteInzendingen.out(0).to(this.OuderDan10Minuten.in(0));
         this.OuderDan10Minuten.out(0).to(this.SlackAlertMock.in(0));
+        this.SlackAlertMock.out(0).to(this.PerInzending.in(0));
+        this.PerInzending.out(0).to(this.MarkeerAlsGemeld.in(0));
     }
 }

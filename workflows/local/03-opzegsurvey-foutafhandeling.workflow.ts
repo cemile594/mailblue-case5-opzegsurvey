@@ -86,7 +86,7 @@ return [{ json: {
         operation: 'insert',
         dataTableId: {
             __rl: true,
-            value: 'slack_messages',
+            value: 'c5_slack_messages',
             mode: 'name',
         },
         columns: {
