@@ -8,6 +8,7 @@
 - **Eerst loggen, dan pas "202 ontvangen".** De ruwe inzending staat in `submission_log` voordat er iets mis kan gaan. Een watchdog meldt alles wat niet binnen 10 minuten op `processed` staat.
 - **Ontbrekende data is een aandachtspunt, geen stop.** Normalisatie levert een lijst `issues` die in de deal-notitie en in één CS-taak terechtkomt.
 - **Eén deal per klant.** Meerdere keuzes worden één stage volgens de prioriteit persoonlijk aanbod > pauze > korting > opzegging. Een bestaande open opzeg-deal wordt bijgewerkt.
+- **Taal als veld, bevestiging als tag.** De taal komt in het standaardveld *Preferred Language* (blijvend, en zichtbaar voor CS). Eén tag start één automation, die op dat veld NL of EN kiest. Een veld alleen werkt niet als trigger, want bij een gelijkblijvende taal start er niets.
 - **Topklant op ARR incl. add-ons.** Daardoor is Blauwdruk (€ 1.788 + € 1.440) een topklant, en dat zou je met alleen het abonnement missen.
 
 **Edge cases die wel zijn afgevangen**
@@ -32,7 +33,7 @@
 1. Webhook beveiligen met een header-secret of signature.
 2. Monitoring: de error-workflow en watchdog naar echte Slack en een dagelijkse samenvatting.
 3. Rechten: een eigen AC-API-gebruiker met minimale scope, en credentials in de n8n-vault.
-4. In de AC-automation de taaltag als laatste stap weer verwijderen, zodat een volgende survey opnieuw een bevestiging stuurt.
+4. In de AC-automation de bevestigingstag als laatste stap weer verwijderen, zodat een volgende survey opnieuw een bevestiging stuurt.
 5. Bewaartermijn van `submission_log` (AVG).
 6. Een korte CS-instructie: wat betekent elke stage, en wat doe je met een taak "Te verifiëren".
 

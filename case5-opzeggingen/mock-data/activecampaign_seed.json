@@ -1,7 +1,9 @@
 {
   "pipeline": {"title": "Opzeg-pipeline", "currency": "eur"},
   "stages": ["Te verifiëren", "Persoonlijk aanbod", "Pauze aangevraagd", "Korting 20% aangevraagd", "Opzegging definitief"],
-  "tags": ["opzegsurvey-bevestiging-nl", "opzegsurvey-bevestiging-en"],
+  "tags": ["opzegsurvey-bevestiging"],
+  "legacy_tags": ["opzegsurvey-bevestiging-nl", "opzegsurvey-bevestiging-en"],
+  "language_field": {"perstag": "PREFERRED_LANGUAGE", "title": "Preferred Language", "values": ["nl", "en"]},
   "contacts": [
     {"email": "info@blauwdruk-voorbeeld.nl", "firstName": "Blauwdruk", "lastName": "B.V."},
     {"email": "hello@northwind-example.com", "firstName": "Northwind", "lastName": "Studio"}

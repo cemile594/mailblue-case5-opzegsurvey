@@ -8,9 +8,9 @@
     "Opzegging definitief": "8"
   },
   "tags": {
-    "opzegsurvey-bevestiging-nl": "1",
-    "opzegsurvey-bevestiging-en": "2"
+    "opzegsurvey-bevestiging": "4"
   },
+  "field_preferred_language": "1",
   "owner_id": "1",
   "tasktype_id": "1",
   "tasktype_title": "Call"

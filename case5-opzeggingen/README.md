@@ -11,7 +11,7 @@ Een klant vult de opzegsurvey in en kiest daarin: **definitief opzeggen**, **pau
 | Probleem nu | Oplossing in deze workflow |
 |---|---|
 | Deals komen in de verkeerde stage. Pauze + persoonlijk aanbod komt **dubbel** binnen | Eén deal per klant. Bij meerdere keuzes bepaalt een vaste **prioriteit** de stage. Bestaat er al een **open opzeg-deal**, dan wordt die **bijgewerkt** in plaats van een nieuwe aangemaakt |
-| Engelstalige klanten krijgen geen bevestiging | Taal wordt bepaald (survey → backoffice → standaard nl). Een tag **`opzegsurvey-bevestiging-nl` / `-en`** start in MailBlue de juiste automation |
+| Engelstalige klanten krijgen geen bevestiging | Taal wordt bepaald (survey → backoffice). Die komt in het standaardveld **Preferred Language** van het contact. Eén tag **`opzegsurvey-bevestiging`** start in MailBlue één automation, die op dat veld de NL- of EN-mail kiest |
 | Het signaal "grote klant → persoonlijk contact" valt weg | **ARR incl. add-ons ≥ € 3.000** geeft altijd een CS-taak en een Slack-melding, ongeacht de keuze |
 | Openstaande facturen zie je pas in MoneyBird | MoneyBird wordt bevraagd. Het **bedrag en de dagen over de vervaldatum** staan in de deal-notitie en de taak. Bij een pauze- of kortingsaanvraag krijgt dat een expliciet **⚠ aandachtspunt** |
 
@@ -43,7 +43,7 @@ flowchart LR
   M --> N[AC: contact sync] --> O{Open opzeg-deal?}
   O -- ja --> P1[AC: deal bijwerken]
   O -- nee --> P2[AC: deal aanmaken]
-  P1 & P2 --> Q[AC: notitie] --> R[AC: taaltag nl/en]
+  P1 & P2 --> Q[AC: notitie] --> R[AC: tag bevestiging]
   R --> S{Taak nodig?} --> T[AC: taak voor CS]
   T --> U{Slack nodig?} --> V[Slack-melding]
   V --> W[(submission_log<br/>processed)]
@@ -64,7 +64,7 @@ flowchart LR
 | # | Node | Type | Wat | Waarom |
 |---|---|---|---|---|
 | 1 | Webhook opzegsurvey | Webhook | `POST /opzegsurvey`, antwoord via een Respond-node | Een Respond-node laat ons zelf bepalen wanneer we "ontvangen" zeggen: pas na het loggen |
-| 2 | Config | Code | Drempel € 3.000, max. 4 maanden pauze, URL's, AC-ID's (pipeline, stages, tags) | Eén plek voor alles wat per omgeving verschilt. Geen magische waarden verspreid over 40 nodes |
+| 2 | Config | Code | Drempel € 3.000, max. 4 maanden pauze, URL's, AC-ID's (pipeline, stages, tag, taalveld) | Eén plek voor alles wat per omgeving verschilt. Geen magische waarden verspreid over 40 nodes |
 | 3 | Normaliseren & valideren | Code | `choice` wordt altijd een unieke lijst, taal nl/en/null, e-mail gecontroleerd, pauze begrensd op 4 | Elke payload krijgt één voorspelbare vorm. Fouten worden **aandachtspunten** (`issues[]`), geen crash |
 | 4–5 | Al eerder ontvangen? / Al verwerkt? | Data Table + If | Zoekt `submission_id` in `submission_log` | **Idempotentie**: een webhook die twee keer binnenkomt, maakt niets dubbel |
 | 6 | Inzending loggen | Data Table (upsert) | Ruwe payload met status `received` | **Eerst vastleggen, dan bevestigen.** Crasht iets daarna, dan staat de inzending er nog en ziet de watchdog hem |
@@ -78,12 +78,12 @@ flowchart LR
 | 14 | AI: feedback analyseren + Gemini | Information Extractor | JSON-schema: samenvatting, categorie (vaste lijst), wil_hulp, bruikbaar. Temperatuur 0, 2 pogingen, error-uitgang | Gestructureerde output in plaats van vrije tekst. Zie §6 |
 | 15 | AI-output valideren / AI mislukt | Code | Categorie buiten de lijst wordt `overig`, lengte begrensd, injectie-check | Zie §6 |
 | 16 | Routing bepalen | Code | **Alle business-regels** op één plek (§5). Bouwt de deal-titel, notitie, taak en Slack-berichten | Regels zijn leesbaar en testbaar op één plek, in plaats van verstopt in 15 filters |
-| 17 | AC: contact synchroniseren | ActiveCampaign | `contact/sync` op e-mail | Bestaat het contact al, dan wordt het bijgewerkt, anders aangemaakt. Ook een onbekende klant krijgt zo een deal en een bevestiging |
+| 17 | AC: contact synchroniseren | HTTP (AC-credential) | `contact/sync` op e-mail, met **Preferred Language** = nl/en | Bestaat het contact al, dan wordt het bijgewerkt, anders aangemaakt. Ook een onbekende klant krijgt zo een deal en een bevestiging. Is de taal onbekend, dan wordt het veld niet overschreven. Daarom de API: de AC-node kan een custom field niet voorwaardelijk weglaten |
 | 18 | AC: deals van contact | HTTP Request (AC-credential) | `GET /api/3/contacts/{id}/deals` | De ActiveCampaign-node kan deals niet filteren |
 | 19 | Open opzeg-deal zoeken | Code | Open deal (status 0) in de opzeg-pipeline? | **Regel (e)**: bijwerken in plaats van een dubbele deal |
 | 20 | AC: deal bijwerken / aanmaken | ActiveCampaign | Stage, titel, waarde (ARR, in centen) | |
 | 21 | AC: notitie toevoegen | ActiveCampaign | Volledige context voor CS | CS hoeft niet meer in drie systemen te kijken |
-| 22 | AC: taaltag toevoegen | ActiveCampaign | `opzegsurvey-bevestiging-nl/-en` | De tag start de automation met de bevestigingsmail in de juiste taal |
+| 22 | AC: bevestigingstag toevoegen | ActiveCampaign | `opzegsurvey-bevestiging` | De tag is de gebeurtenis "stuur nu een bevestiging". De taal staat al in Preferred Language. Een veld alleen werkt niet als trigger: blijft de taal gelijk, dan start een automation op "veld gewijzigd" niet |
 | 23 | Taak nodig? → AC: taak voor CS | If + HTTP Request | `POST /api/3/dealTasks` | **Eén** taak met alle redenen, in plaats van losse taken die door elkaar gaan lopen |
 | 24 | Slack nodig? → Slack-melding (mock) | If + Data Table | `#cs-topklanten` of `#cs-alerts` | |
 | 25 | Afronden in log | Data Table (update) | Status `processed`, deal-ID, stage, aandachtspunten | Audit trail. De watchdog weet zo dat de inzending klaar is |
@@ -112,7 +112,7 @@ flowchart LR
 |---|---|
 | Klant niet gevonden | Contact wordt op e-mail aangemaakt, deal in **Te verifiëren**, taak, en een alert in `#cs-alerts` |
 | `customer_id` ontbreekt | Klant wordt gezocht op e-mail |
-| Taal ontbreekt | Backoffice-taal, anders nl, met een aandachtspunt |
+| Taal ontbreekt | Backoffice-taal. Is die er ook niet, dan wordt Preferred Language niet aangepast, gaat de bevestiging standaard in het NL en komt er een aandachtspunt |
 | Keuze ontbreekt of is onbekend | Stage Te verifiëren en een taak |
 | Pauze te lang of zonder aantal maanden | Begrensd of gemarkeerd, met een aandachtspunt |
 | MoneyBird reageert niet | 3 pogingen, daarna "controleer handmatig" in de notitie en de taak, en een alert |
@@ -122,7 +122,7 @@ flowchart LR
 
 ## 8. Datamodel
 
-- **ActiveCampaign**: pipeline *Opzeg-pipeline* met stages *Te verifiëren · Persoonlijk aanbod · Pauze aangevraagd · Korting 20% aangevraagd · Opzegging definitief*. Tags `opzegsurvey-bevestiging-nl/-en`. Taaktype Call.
+- **ActiveCampaign**: pipeline *Opzeg-pipeline* met stages *Te verifiëren · Persoonlijk aanbod · Pauze aangevraagd · Korting 20% aangevraagd · Opzegging definitief*. Tag `opzegsurvey-bevestiging`. Standaardveld *Preferred Language* (dropdown, nl/en). Taaktype Call.
 - **Data Tables**: `backoffice_customers`, `moneybird_invoices`, `c5_slack_messages`, `submission_log`.
 - Alle data is fictief en staat in [`mock-data/`](mock-data/).
 
@@ -132,7 +132,7 @@ flowchart LR
 |---|---|
 | **01** korting, nl (Blauwdruk) | Nieuwe deal *Korting 20%*. Topklant (€ 3.228 door add-ons): taak + Slack. Notitie met € 149 / 51 dagen ⚠. Tag nl. AI: categorie templates_content |
 | **02** pauze + aanbod, en (Northwind) | **Bestaande** open deal bijgewerkt naar *Persoonlijk aanbod* (geen tweede deal). Pauze 5 → 4 gemarkeerd. Topklant: taak + Slack. Tag en. AI overgeslagen (leeg) |
-| **03** opzegging, onvolledig | Klant niet gevonden: contact aangemaakt, deal *Te verifiëren*, taal nl (gemarkeerd), MoneyBird n.v.t., taak + `#cs-alerts` |
+| **03** opzegging, onvolledig | Klant niet gevonden: contact aangemaakt, deal *Te verifiëren*, Preferred Language niet aangepast (gemarkeerd), MoneyBird n.v.t., taak + `#cs-alerts` |
 | 04 pauze, kleine klant | Geen topklant. Open factuur € 49 bij pauze: taak met aandachtspunt, geen Slack |
 | 05 = 01 nogmaals | `200 duplicate`, niets dubbel |
 | 06 prompt-injectie | Categorie `overig`, géén AI-samenvatting weggeschreven, aandachtspunt "lees het origineel" |
@@ -142,12 +142,12 @@ flowchart LR
 
 1. Importeer `export/*.json` in n8n (of push de `.workflow.ts`-bestanden met `n8nac push`).
 2. Maak de credentials aan: *ActiveCampaign API*, *Google Gemini API* en *Header Auth* "MoneyBird API (mock)" (`Authorization: Bearer …`).
-3. `python3 scripts/setup_activecampaign.py` zet pipeline, stages, tags, contacten en de seed-deal klaar. Zet de geprinte ID's in de **Config**-node.
+3. `python3 scripts/setup_activecampaign.py` zet pipeline, stages, de tag, het taalveld, contacten en de seed-deal klaar. Zet de geprinte ID's in de **Config**-node.
 4. Activeer 00 en `curl -X POST <n8n>/webhook/setup-mock-data` om de Data Tables te vullen. Activeer daarna 01, 02, **03** en 04. Let op: in n8n 2.x wordt een error-workflow alleen gestart als hij zelf **actief** is.
 5. `scripts/run_demo.sh --reset --extra` stuurt alle payloads en toont de stand in ActiveCampaign.
 
-### Bevestigingsmail in MailBlue (automation, 2× in de AC-interface)
-Trigger: *Tag is toegevoegd* `opzegsurvey-bevestiging-nl` (of `-en`). Daarna: stuur de e-mail "Bevestiging opzegsurvey" in die taal. Als **laatste stap verwijder je de tag weer**, zodat een volgende survey opnieuw een bevestiging stuurt.
+### Bevestigingsmail in MailBlue (één automation, in de AC-interface)
+Trigger: *Tag is toegevoegd* `opzegsurvey-bevestiging`. Daarna een **If/Else** op *Preferred Language* is English: ja → Engelse mail, nee → Nederlandse mail. Een leeg veld valt zo terug op NL. Als **laatste stap verwijder je de tag weer**, zodat een volgende survey opnieuw een bevestiging stuurt.
 
 ## 11. Screenshots
 

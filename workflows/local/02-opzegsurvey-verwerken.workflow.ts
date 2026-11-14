@@ -35,7 +35,7 @@ import { workflow, node, links } from '@n8n-as-code/transformer';
 // AiOutputValideren                  code
 // AiMislukt                          code
 // RoutingBepalen                     code
-// AcContactSynchroniseren            activeCampaign             [creds] [retry]
+// AcContactSynchroniseren            httpRequest                [creds] [retry]
 // AcDealsVanContact                  httpRequest                [creds] [retry]
 // OpenOpzegDealZoeken                code
 // BestaandeDeal                      if
@@ -43,7 +43,7 @@ import { workflow, node, links } from '@n8n-as-code/transformer';
 // AcDealAanmaken                     activeCampaign             [creds] [retry]
 // DealVastleggen                     code
 // AcNotitieToevoegen                 activeCampaign             [creds] [retry]
-// AcTaaltagToevoegen                 activeCampaign             [creds] [retry]
+// AcBevestigingstagToevoegen         activeCampaign             [creds] [retry]
 // TaakNodig                          if
 // AcTaakVoorCs                       httpRequest                [creds] [retry]
 // SlackNodig                         if
@@ -77,7 +77,7 @@ import { workflow, node, links } from '@n8n-as-code/transformer';
 //                                          → AcDealBijwerken
 //                                            → DealVastleggen
 //                                              → AcNotitieToevoegen
-//                                                → AcTaaltagToevoegen
+//                                                → AcBevestigingstagToevoegen
 //                                                  → TaakNodig
 //                                                    → AcTaakVoorCs
 //                                                      → SlackNodig
@@ -214,7 +214,7 @@ Alle regels op één leesbare plek: stage-prioriteit, topklant, factuur-aandacht
     })
     Uitleg4Crm = {
         content: `### 4. ActiveCampaign (MailBlue)
-Contact sync op e-mail → **bestaande open opzeg-deal? bijwerken, anders aanmaken** → notitie → taaltag (start NL/EN-bevestigingsmail via automation).`,
+Contact sync op e-mail → **bestaande open opzeg-deal? bijwerken, anders aanmaken** → notitie → tag \`opzegsurvey-bevestiging\`. Preferred Language wordt bij de contact sync gezet; de automation kiest daarop de NL- of EN-bevestiging.`,
         height: 520,
         width: 1560,
         color: 2,
@@ -260,7 +260,7 @@ Taak voor CS (één taak met alle redenen), Slack-melding (mock) bij topklant of
     })
     Config = {
         jsCode: `// Eén plek voor alles wat per omgeving verschilt. In productie: n8n Variables / environment.
-const AC = {"ac_base_url":"https://celimec.api-us1.com","ac_pipeline_id":"1","ac_stages":{"te_verifieren":"4","personal_offer":"5","pause":"6","discount_20":"7","cancel":"8"},"ac_tags":{"nl":"1","en":"2"},"ac_owner_id":"1","ac_tasktype_id":"1"}; // AC-IDS (gevuld door scripts/setup_activecampaign.py)
+const AC = {"ac_base_url":"https://celimec.api-us1.com","ac_pipeline_id":"1","ac_stages":{"te_verifieren":"4","personal_offer":"5","pause":"6","discount_20":"7","cancel":"8"},"ac_tag_bevestiging":"4","ac_field_taal":"1","ac_owner_id":"1","ac_tasktype_id":"1"}; // AC-IDS (gevuld door scripts/setup_activecampaign.py)
 return [{ json: {
   arr_topklant_drempel: 3000,   // € ARR incl. add-ons
   max_pauze_maanden: 4,
@@ -549,7 +549,7 @@ const is_topklant = !!klant && arr_totaal >= cfg.arr_topklant_drempel;
 let taal = n.language;
 let taal_bron = 'survey';
 if (!taal && klant && ['nl', 'en'].includes(klant.taal)) { taal = klant.taal; taal_bron = 'backoffice'; }
-if (!taal) { taal = 'nl'; taal_bron = 'standaard'; issues.push('Taal onbekend; Nederlandse bevestiging verstuurd (standaard)'); }
+if (!taal) { taal = 'nl'; taal_bron = 'standaard'; issues.push('Taal onbekend; Preferred Language niet aangepast, bevestiging standaard NL'); }
 
 return [{ json: {
   ...n,
@@ -920,7 +920,10 @@ if (c.choices.includes('pause')) {
 }
 regels.push('Reden: ' + (c.reason || 'onbekend') + (c.reason_detail ? ' – "' + c.reason_detail + '"' : ''));
 regels.push('Openstaande facturen (MoneyBird): ' + factuurTekst);
-regels.push('Taal: ' + c.taal + ' (' + c.taal_bron + '), bevestigingsmail ' + c.taal.toUpperCase());
+const taalBekend = c.taal_bron !== 'standaard';
+regels.push(taalBekend
+  ? 'Taal: ' + c.taal + ' (' + c.taal_bron + ') · Preferred Language = ' + c.taal + ' · bevestigingsmail ' + c.taal.toUpperCase()
+  : 'Taal: onbekend · Preferred Language niet aangepast · bevestiging standaard NL');
 regels.push('Open antwoord: ' + (c.open_feedback ? '"' + c.open_feedback + '"' : '(leeg)'));
 if (ai && ai.status === 'ok') regels.push('AI-samenvatting (automatisch, controleer): ' + ai.samenvatting + ' [categorie: ' + ai.categorie + (ai.wil_hulp ? ', vraagt om hulp' : '') + ']');
 else if (ai) regels.push('AI-samenvatting: niet beschikbaar (' + ai.status + ')');
@@ -941,17 +944,20 @@ if (!c.klant_gevonden || c.factuur_status === 'onbekend') {
       (!c.klant_gevonden ? 'klant niet gevonden (' + (c.email || 'geen e-mail') + '), deal staat in "Te verifiëren"' : 'MoneyBird niet bereikbaar bij ' + naam) + '.' });
 }
 
+const acEmail = c.email || (c.klant && c.klant.email) || '';
 return [{ json: {
   ...c,
   issues,
   stage_key,
   stage_label: LABEL[stage_key],
   stage_id: cfg.ac_stages[stage_key],
-  ac_email: c.email || (c.klant && c.klant.email) || '',
+  ac_email: acEmail,
+  // Contact sync: Preferred Language alleen meesturen als de taal echt bekend is (niet de NL-standaard)
+  ac_contact_sync: { contact: Object.assign({ email: acEmail }, taalBekend ? { fieldValues: [{ field: String(cfg.ac_field_taal), value: c.taal }] } : {}) },
   deal_titel: 'Opzegsurvey – ' + naam + ' – ' + LABEL[stage_key],
   deal_waarde_cent: Math.round(c.arr_totaal * 100),
   deal_notitie: regels.join('\\n'),
-  tag_id: cfg.ac_tags[c.taal],
+  tag_id: cfg.ac_tag_bevestiging,
   taak_nodig,
   taak,
   slack_berichten: slack,
@@ -962,19 +968,26 @@ return [{ json: {
     @node({
         id: '70674766-1204-4272-934d-9d288a8fcd41',
         name: 'AC: contact synchroniseren',
-        type: 'n8n-nodes-base.activeCampaign',
-        version: 1,
+        type: 'n8n-nodes-base.httpRequest',
+        version: 4.5,
         position: [3696, 0],
         credentials: { activeCampaignApi: { id: 'p8gpGpHa1hYCkFp9', name: 'ActiveCampaign (trial)' } },
         retryOnFail: true,
         maxTries: 3,
         waitBetweenTries: 2000,
-        notes: 'Contact sync op e-mail (bestaat al → bijwerken, anders aanmaken). Ook voor een onbekende klant, zodat de deal en de bevestiging niet wegvallen.',
+        notes: 'Contact sync op e-mail (bestaat al → bijwerken, anders aanmaken), ook voor een onbekende klant. Zet Preferred Language (nl/en) alleen als de taal bekend is; daarom direct de API in plaats van de AC-node.',
     })
     AcContactSynchroniseren = {
-        email: '={{ $json.ac_email }}',
-        updateIfExists: true,
-        additionalFields: {},
+        method: 'POST',
+        url: "={{ $('Config').first().json.ac_base_url }}/api/3/contact/sync",
+        authentication: 'predefinedCredentialType',
+        nodeCredentialType: 'activeCampaignApi',
+        sendBody: true,
+        specifyBody: 'json',
+        jsonBody: '={{ JSON.stringify($json.ac_contact_sync) }}',
+        options: {
+            timeout: 10000,
+        },
     };
 
     @node({
@@ -990,7 +1003,7 @@ return [{ json: {
         notes: 'De ActiveCampaign-node kan deals niet filteren, dus direct de API: alle deals van dit contact.',
     })
     AcDealsVanContact = {
-        url: "={{ $('Config').first().json.ac_base_url }}/api/3/contacts/{{ $json.id }}/deals",
+        url: "={{ $('Config').first().json.ac_base_url }}/api/3/contacts/{{ $json.contact.id }}/deals",
         authentication: 'predefinedCredentialType',
         nodeCredentialType: 'activeCampaignApi',
         options: {
@@ -1009,7 +1022,7 @@ return [{ json: {
     OpenOpzegDealZoeken = {
         jsCode: `const ctx = $('Routing bepalen').first().json;
 const cfg = $('Config').first().json;
-const contact_id = String($('AC: contact synchroniseren').first().json.id);
+const contact_id = String($('AC: contact synchroniseren').first().json.contact.id);
 const deals = ($input.first().json.deals || [])
   .filter(d => String(d.group) === String(cfg.ac_pipeline_id) && String(d.status) === '0')
   .sort((a, b) => new Date(b.mdate || b.cdate) - new Date(a.mdate || a.cdate));
@@ -1134,7 +1147,7 @@ return [{ json: { ...ctx, deal_id: String(deal.id), deal_actie: ctx.bestaande_de
 
     @node({
         id: '1b07cd72-362c-479a-8b49-9d3d1c5c69e4',
-        name: 'AC: taaltag toevoegen',
+        name: 'AC: bevestigingstag toevoegen',
         type: 'n8n-nodes-base.activeCampaign',
         version: 1,
         position: [5248, 0],
@@ -1142,9 +1155,9 @@ return [{ json: { ...ctx, deal_id: String(deal.id), deal_actie: ctx.bestaande_de
         retryOnFail: true,
         maxTries: 3,
         waitBetweenTries: 2000,
-        notes: 'Tag opzegsurvey-bevestiging-nl/-en start in MailBlue de automation met de juiste bevestigingsmail.',
+        notes: 'Tag opzegsurvey-bevestiging start in MailBlue één automation; die kiest op Preferred Language de NL- of EN-bevestigingsmail en haalt de tag daarna weer weg.',
     })
-    AcTaaltagToevoegen = {
+    AcBevestigingstagToevoegen = {
         resource: 'contactTag',
         operation: 'add',
         tagId: "={{ $('Deal vastleggen').first().json.tag_id }}",
@@ -1358,8 +1371,8 @@ return ctx.slack_berichten.map(m => ({ json: {
         this.AcDealBijwerken.out(0).to(this.DealVastleggen.in(0));
         this.AcDealAanmaken.out(0).to(this.DealVastleggen.in(0));
         this.DealVastleggen.out(0).to(this.AcNotitieToevoegen.in(0));
-        this.AcNotitieToevoegen.out(0).to(this.AcTaaltagToevoegen.in(0));
-        this.AcTaaltagToevoegen.out(0).to(this.TaakNodig.in(0));
+        this.AcNotitieToevoegen.out(0).to(this.AcBevestigingstagToevoegen.in(0));
+        this.AcBevestigingstagToevoegen.out(0).to(this.TaakNodig.in(0));
         this.TaakNodig.out(0).to(this.AcTaakVoorCs.in(0));
         this.TaakNodig.out(1).to(this.SlackNodig.in(0));
         this.AcTaakVoorCs.out(0).to(this.SlackNodig.in(0));

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Zet de ActiveCampaign (MailBlue) trial klaar voor case 5 — idempotent.
 
-  python3 setup_activecampaign.py            # pipeline, stages, tags, contacten, seed-deal
-  python3 setup_activecampaign.py --reset    # opzeg-deals + demo-contact verwijderen, tags los, opnieuw seeden
+  python3 setup_activecampaign.py            # pipeline, stages, tag, taalveld, contacten, seed-deal
+  python3 setup_activecampaign.py --reset    # opzeg-deals + demo-contact verwijderen, tag en taalveld leeg, opnieuw seeden
   python3 setup_activecampaign.py --check    # overzicht deals/notities/taken/tags (voor verificatie na de demo)
 
 Leest AC_API_URL en AC_API_KEY uit ../../.env (nooit uit argumenten, nooit printen).
@@ -113,6 +113,35 @@ def ensure_tasktype():
     return t["id"], t["title"]
 
 
+def ensure_language_field():
+    """Standaardveld 'Preferred Language' (dropdown, waarden nl/en). Bestaat in elk AC-account."""
+    spec = SEED["language_field"]
+    fields = api("GET", "fields", params={"limit": 100}).get("fields", [])
+    found = [f for f in fields if f.get("perstag") == spec["perstag"] or f.get("title") == spec["title"]]
+    if not found:
+        sys.exit(f"Veld '{spec['title']}' niet gevonden in ActiveCampaign")
+    fid = found[0]["id"]
+    values = {o["value"] for o in api("GET", f"fields/{fid}").get("fieldOptions", [])}
+    missing = [v for v in spec["values"] if v not in values]
+    if missing:
+        sys.exit(f"Veld '{spec['title']}' mist de waarde(n) {missing}")
+    return fid
+
+
+def tag_ids_by_name(names):
+    ids = []
+    for name in names:
+        ids += [t["id"] for t in api("GET", "tags", params={"search": name}).get("tags", []) if t["tag"] == name]
+    return ids
+
+
+def language_value(cid, fid):
+    for fv in api("GET", f"contacts/{cid}/fieldValues").get("fieldValues", []):
+        if str(fv["field"]) == str(fid):
+            return fv
+    return None
+
+
 def sync_contact(c):
     return api("POST", "contact/sync", {"contact": c})["contact"]["id"]
 
@@ -138,7 +167,7 @@ def seed_existing_deals(pid, stage_ids, owner_id):
         print(f"  seed-deal aangemaakt: {deal['id']} — {d['title']}")
 
 
-def reset(pid, tag_ids):
+def reset(pid, tag_ids, field_id):
     for d in pipeline_deals(pid):
         api("DELETE", f"deals/{d['id']}")
         print(f"  deal verwijderd: {d['id']} {d['title']}")
@@ -147,7 +176,7 @@ def reset(pid, tag_ids):
         if cid:
             api("DELETE", f"contacts/{cid}")
             print(f"  demo-contact verwijderd: {email}")
-    wanted = set(map(str, tag_ids.values()))
+    wanted = set(map(str, list(tag_ids.values()) + tag_ids_by_name(SEED.get("legacy_tags", []))))
     for c in SEED["contacts"]:
         cid = contact_id_by_email(c["email"])
         if not cid:
@@ -155,6 +184,9 @@ def reset(pid, tag_ids):
         for ct in api("GET", f"contacts/{cid}/contactTags").get("contactTags", []):
             if str(ct["tag"]) in wanted:
                 api("DELETE", f"contactTags/{ct['id']}")
+        fv = language_value(cid, field_id)  # taalveld leeg, zodat de demo laat zien dat de workflow het vult
+        if fv and fv.get("value"):
+            api("DELETE", f"fieldValues/{fv['id']}")
 
 
 def check(ids):
@@ -169,9 +201,11 @@ def check(ids):
         tasks = [t for t in tasks if str(t.get("relid")) == str(d["id"])]
         tags = [ct["tag"] for ct in api("GET", f"contacts/{d['contact']}/contactTags").get("contactTags", [])]
         tag_names = [k for k, v in ids["tags"].items() if str(v) in map(str, tags)]
+        fv = language_value(d["contact"], ids["field_preferred_language"])
+        taal = (fv or {}).get("value") or "-"
         print(f"- #{d['id']} {d['title']}\n    stage={stage_name.get(d['stage'], d['stage'])} | "
               f"waarde=€{int(d['value'])/100:,.0f} | contact={contact['email']} | status={'open' if d['status']=='0' else d['status']}\n"
-              f"    notities={len(notes)} | taken={len(tasks)} | tags={tag_names}")
+              f"    notities={len(notes)} | taken={len(tasks)} | tags={tag_names} | Preferred Language={taal}")
         for t in tasks:
             print(f"      taak: {t.get('title')} (deadline {t.get('duedate','')[:10]})")
 
@@ -181,12 +215,14 @@ def main():
     print(f"pipeline {pid} ({'nieuw' if new else 'bestond al'})")
     stage_ids = ensure_stages(pid, new)
     tag_ids = ensure_tags()
+    field_id = ensure_language_field()
     owner_id = api("GET", "users/me")["user"]["id"]
     tasktype_id, tasktype_title = ensure_tasktype()
     ids = {
         "pipeline_id": pid,
         "stages": stage_ids,
         "tags": tag_ids,
+        "field_preferred_language": field_id,
         "owner_id": owner_id,
         "tasktype_id": tasktype_id,
         "tasktype_title": tasktype_title,
@@ -196,7 +232,7 @@ def main():
         check(ids)
         return
     if "--reset" in sys.argv:
-        reset(pid, tag_ids)
+        reset(pid, tag_ids, field_id)
     for c in SEED["contacts"]:
         sync_contact(c)
     seed_existing_deals(pid, stage_ids, owner_id)
