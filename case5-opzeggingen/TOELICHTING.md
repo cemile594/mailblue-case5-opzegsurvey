@@ -43,3 +43,4 @@
 3. Bij de prompt-injectietest nam het model de injectietekst letterlijk over als "samenvatting". Daar zijn het veld `bruikbaar` en een regex-check bijgekomen.
 4. Tests tegen de echte API's leverden twee dingen op die nergens in de docs stonden. ActiveCampaign haalt tekens als `|` en `⚠` uit notities, dus de opmaak is aangepast. En in n8n 2.x start een error-workflow alleen als hij zelf actief is: de faaltest liet dat zien, en is daarna opnieuw gedraaid.
 5. Notitieteksten heb ik herschreven nadat ik de echte output had gelezen. Deal-waardes gaan in centen: dat heb ik nagekeken in de broncode van de AC-node.
+6. De AI-builder van ActiveCampaign maakte voor de taalconditie twee keer een nieuw, leeg tekstveld aan in plaats van het bestaande veld Preferred Language te gebruiken. Ik heb de conditie via de API op het echte veld gezet (waarde `en`, niet "English"), getest met een segment-match, en de herschreven mailteksten vervangen.

@@ -146,7 +146,9 @@ flowchart LR
 4. Activeer 00 en `curl -X POST <n8n>/webhook/setup-mock-data` om de Data Tables te vullen. Activeer daarna 01, 02, **03** en 04. Let op: in n8n 2.x wordt een error-workflow alleen gestart als hij zelf **actief** is.
 5. `scripts/run_demo.sh --reset --extra` stuurt alle payloads en toont de stand in ActiveCampaign.
 
-### Bevestigingsmail in MailBlue (één automation, in de AC-interface)
+### Bevestigingsmail in MailBlue (één automation)
+In de trial staat **"Opzegsurvey – bevestigingsmail (NL/EN)"** (id 3, bewust inactief). Hij is gebouwd via de ActiveCampaign-MCP en daarna gecorrigeerd. Opbouw, mailteksten en correcties staan in [docs/mailblue-bevestigingsmail.md](docs/mailblue-bevestigingsmail.md).
+
 Trigger: *Tag is toegevoegd* `opzegsurvey-bevestiging`. Daarna een **If/Else** op *Preferred Language* is English: ja → Engelse mail, nee → Nederlandse mail. Een leeg veld valt zo terug op NL. Als **laatste stap verwijder je de tag weer**, zodat een volgende survey opnieuw een bevestiging stuurt.
 
 ## 11. Screenshots
